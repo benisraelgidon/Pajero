@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PAJERO">
+<meta name="theme-color" content="#09090B">
+<title>Pajero Node</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Saira+Condensed:ital,wght@0,700;0,800;1,700;1,800&family=Inter:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --bg:#09090B; --panel:#141418; --panel2:#1A1A20; --line:#27272E;
+    --text:#F4F4F6; --muted:#87878F; --dim:#54545C;
+    --red:#D50F2C; --gold:#E8B84B; --ice:#6FA8FF; --silver:#C9CDD2;
+    --ok:#4FD08A; --warn:#E8B84B; --bad:#D50F2C; --orange:#F5871A;
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(900px 380px at 50% -140px,#17171c 0%,transparent 72%),var(--bg);
+    color:var(--text);font-family:"Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+    min-height:100vh;display:flex;justify-content:center;letter-spacing:-0.01em;
+    padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+  .num{font-variant-numeric:tabular-nums}
+  .cond{font-family:"Saira Condensed",sans-serif}
+  .app{width:100%;max-width:448px;padding:22px 18px 46px}
+
+  /* header */
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .emblem{display:flex;align-items:center;gap:10px}
+  .badge{width:44px;height:44px;flex:none}
+  .rally{font-family:"Saira Condensed";font-style:italic;font-weight:800;font-size:13px;letter-spacing:.18em;color:var(--silver);line-height:1}
+  .rally b{color:var(--red)}
+  .rally span{display:block;font-size:9px;letter-spacing:.32em;color:var(--muted);margin-top:2px}
+  .state{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .sdot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 12px var(--ok)}
+  .wordmark{font-family:"Archivo Black",sans-serif;font-weight:400;font-size:44px;line-height:.9;
+    letter-spacing:.005em;margin:10px 0 2px;
+    background:linear-gradient(180deg,#ffffff 0%,#dfe2e6 52%,#a7abb1 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .wordmark small{font-family:"Saira Condensed";font-style:italic;font-size:15px;-webkit-text-fill-color:var(--red);
+    color:var(--red);margin-left:10px;letter-spacing:.1em;vertical-align:super;font-weight:800}
+  .ralliart{height:26px;width:auto;display:block}
+  .rule{height:3px;margin:14px 0 20px;border-radius:2px;
+    background:linear-gradient(90deg,var(--red) 0,var(--orange) 24%,var(--line) 30%,var(--line) 100%)}
+
+  /* banner */
+  .banner{margin:0 0 14px;padding:11px 13px;border-radius:12px;font-size:13.5px;font-weight:500;
+    display:flex;gap:9px;align-items:center;border:1px solid}
+  .banner.demo{background:rgba(232,184,75,.09);border-color:rgba(232,184,75,.4);color:var(--gold)}
+  .banner.live{background:rgba(79,208,138,.09);border-color:rgba(79,208,138,.4);color:var(--ok)}
+  .banner.err{background:rgba(213,15,44,.10);border-color:rgba(213,15,44,.45);color:var(--red)}
+
+  /* status cluster */
+  .cluster{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:26px}
+  .gauge{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:13px 14px;position:relative;overflow:hidden}
+  .gauge .k{font-family:"Saira Condensed";font-weight:600;font-size:12px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  .gauge .v{font-size:22px;font-weight:300;margin-top:5px;line-height:1}
+  .gauge::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--dim);opacity:.5}
+  .gauge.on::after{background:var(--ok)} .gauge.warn::after{background:var(--gold)} .gauge.off::after{background:var(--red)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim);margin-right:6px;vertical-align:middle}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok);animation:pulse 2.4s infinite}
+  .dot.off{background:var(--red)}
+  @keyframes pulse{50%{opacity:.35}}
+  @keyframes ping{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+
+  /* section label */
+  .sec{font-family:"Saira Condensed";font-weight:700;font-style:italic;font-size:15px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--silver);margin:0 2px 13px;display:flex;align-items:center;gap:10px}
+  .sec::before{content:"";width:9px;height:9px;background:var(--red);transform:rotate(45deg);border-radius:1px;flex:none}
+  .sec .r{margin-left:auto;font-family:"Inter";font-style:normal;font-weight:400;font-size:12px;letter-spacing:0;color:var(--dim);text-transform:none}
+  .sec .r.tap{color:var(--ice);cursor:pointer}
+
+  /* cards */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;margin-bottom:22px;overflow:hidden}
+  .card>.hd{display:none}         /* section titles handled by .sec now */
+  .body{padding:16px}
+  .collapsed .body{display:none}
+
+  /* controls */
+  .cmds{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .cmd{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:16px;
+    padding:17px 15px;font-family:"Saira Condensed";font-weight:700;font-size:19px;letter-spacing:.05em;
+    text-transform:uppercase;cursor:pointer;text-align:left;transition:.14s;display:flex;flex-direction:column;
+    gap:4px;min-height:74px;justify-content:center;-webkit-tap-highlight-color:transparent}
+  .cmd .ic{display:none}
+  .cmd small{font-family:"Inter";font-size:11.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted)}
+  .cmd:active{transform:scale(.985)}
+  .cmd.unlock{border-color:rgba(213,15,44,.5)} .cmd.unlock:active{background:rgba(213,15,44,.12)} .cmd.unlock small{color:var(--red)}
+  .cmd.lock small{color:var(--gold)}
+  .cmd.gate small{color:var(--ice)}
+  .cmd.bb{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center}
+  .cmd.bb .l{display:flex;flex-direction:column;gap:3px}
+  .cmd.bb.armed{background:rgba(213,15,44,.10);border-color:rgba(213,15,44,.5)}
+  .pill{font-family:"Inter";font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;
+    padding:6px 13px;border-radius:20px;background:var(--line);color:var(--muted)}
+  .cmd.bb.armed .pill{background:var(--red);color:#fff}
+
+  /* telemetry */
+  .tele{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px}
+  .cell .lab{font-family:"Saira Condensed";font-weight:600;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .cell .num,.cell>div:last-child{font-size:23px;font-weight:300;margin-top:4px;letter-spacing:-0.01em}
+  .cell .num small{color:var(--muted);font-size:12px;font-weight:400}
+
+  /* map */
+  #map{height:210px;background:#050506;position:relative}
+  #map .offline{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;color:var(--muted);font-size:13px;gap:6px;z-index:5;padding:20px}
+  #map .offline .co{font-size:20px;color:var(--text)}
+  .leaflet-container{background:#050506}
+  .map-wrap{border-radius:18px;overflow:hidden;border:1px solid var(--line);margin-bottom:22px;position:relative}
+  .mapcoord{position:absolute;left:14px;bottom:12px;z-index:6;font-size:13px;color:var(--silver);
+    background:rgba(0,0,0,.55);padding:5px 10px;border-radius:6px;backdrop-filter:blur(4px)}
+
+  /* off-grid unlock */
+  .lora{background:linear-gradient(180deg,rgba(213,15,44,.06),transparent 42%),var(--panel);text-align:center}
+  .lora .kv{font-family:"Saira Condensed";font-weight:700;font-style:italic;font-size:13px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--silver);margin-bottom:14px}
+  .lora .kv span{color:var(--gold)}
+  #loraCode{font-size:26px;font-weight:300;letter-spacing:.02em}
+  .lora .glow{height:2px;width:74px;margin:12px auto 14px;border-radius:2px;
+    background:linear-gradient(90deg,transparent,var(--ice),transparent);box-shadow:0 0 12px rgba(111,168,255,.5)}
+  .lora .sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+
+  /* field log */
+  .logadd{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .attach{position:relative;overflow:hidden;border:1px dashed var(--line);border-radius:13px;background:var(--panel2);
+    color:var(--text);font-family:"Saira Condensed";font-weight:700;font-size:14px;letter-spacing:.04em;text-transform:uppercase;
+    padding:14px;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .attach input{position:absolute;inset:0;opacity:0;font-size:0}
+  .attach.set{border-style:solid;border-color:var(--ok);color:var(--ok)}
+  textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:13px;color:var(--text);
+    font-family:"Inter";font-size:15px;padding:12px;resize:none;margin-bottom:10px}
+  textarea:focus{outline:none;border-color:var(--ice)}
+  .save{width:100%;background:var(--red);color:#fff;border:none;border-radius:13px;padding:14px;
+    font-family:"Saira Condensed";font-weight:800;font-style:italic;font-size:15px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+  .save:active{opacity:.88} .save:disabled{background:var(--line);color:var(--dim);cursor:default}
+  .entries{margin-top:6px;display:flex;flex-direction:column;gap:10px}
+  .entry{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
+  .entry .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px}
+  .entry .meta .co{color:var(--gold)}
+  .entry .txt{font-size:14px;line-height:1.4}
+  .entry .media{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
+  .entry img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+  .entry audio{height:34px}
+  .empty{color:var(--dim);font-size:13px;text-align:center;padding:16px 0}
+
+  /* buttons shared */
+  .copy,.connect{width:100%;border:none;border-radius:13px;padding:14px;cursor:pointer;
+    font-family:"Saira Condensed";font-weight:800;font-style:italic;font-size:15px;letter-spacing:.1em;text-transform:uppercase}
+  .copy{background:var(--red);color:#fff} .copy:active{opacity:.88}
+  .connect{background:var(--ice);color:#0B1220;margin-top:4px}
+
+  /* connection panel */
+  .field{margin-bottom:10px}
+  .field label{display:block;font-family:"Saira Condensed";font-weight:600;font-size:11px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .field input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;color:var(--text);
+    font-family:"Inter";font-size:13px;padding:11px}
+  .field input:focus{outline:none;border-color:var(--ice)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  .foot{text-align:center;color:var(--dim);font-size:11px;margin-top:24px;
+    font-family:"Saira Condensed";font-weight:600;letter-spacing:.2em;text-transform:uppercase}
+
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0) + 22px);transform:translateX(-50%) translateY(20px);
+    background:var(--panel);border:1px solid var(--line);color:var(--text);padding:11px 18px;border-radius:12px;
+    font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:.22s;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast .bar{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:8px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="top">
+    <svg class="ralliart" viewBox="0 0 214 40" role="img" aria-label="Ralliart">
+      <g font-family="'Saira Condensed',sans-serif" font-weight="800" font-style="italic" font-size="33" fill="#F4F4F6">
+        <text x="0" y="31">RALLI</text>
+        <text x="150" y="31">ART</text>
+      </g>
+      <g>
+        <polygon points="92,6 96,6 90,34 86,34" fill="#C8001F"/>
+        <polygon points="99,6 103,6 97,34 93,34" fill="#E4032E"/>
+        <polygon points="106,6 110,6 104,34 100,34" fill="#EE2A1C"/>
+        <polygon points="113,6 117,6 111,34 107,34" fill="#F2601B"/>
+        <polygon points="120,6 124,6 118,34 114,34" fill="#F5871A"/>
+        <polygon points="127,6 131,6 125,34 121,34" fill="#F7A11C"/>
+      </g>
+    </svg>
+    <div class="state"><span class="sdot"></span> Live</div>
+  </div>
+  <div class="wordmark">PAJERO<small>NODE</small></div>
+  <div class="rule"></div>
+
+  <div class="banner demo" id="banner"><span>◆</span><span id="bannerTxt">Not connected — running demo.</span></div>
+
+  <div class="cluster">
+    <div class="gauge" id="gLink"><div class="k">Link</div><div class="v"><span class="dot" id="dLink"></span><span id="vLink">—</span></div></div>
+    <div class="gauge" id="gGps"><div class="k">GPS</div><div class="v" id="vGps">—</div></div>
+    <div class="gauge" id="gPwr"><div class="k">Node</div><div class="v" id="vPwr">—</div></div>
+  </div>
+
+  <!-- CONTROLS (top) -->
+  <div class="sec">Controls <span class="r">tap to send</span></div>
+  <div class="cmds" style="margin-bottom:22px">
+    <button class="cmd unlock" data-cmd="unlock">Unlock<small>keyfob pulse</small></button>
+    <button class="cmd lock" data-cmd="lock">Lock<small>keyfob pulse</small></button>
+    <button class="cmd gate" data-cmd="gate">Gate<small>remote press</small></button>
+    <button class="cmd bb" id="bbBtn" data-cmd="blackbox">
+      <span class="l"><span>Black Box</span><small id="bbSub">10-second press</small></span>
+      <span class="pill" id="bbPill">PRESS</span>
+    </button>
+  </div>
+
+  <!-- MAP (middle) -->
+  <div class="sec">Position <span class="r num" id="mapCoord">—</span></div>
+  <div class="map-wrap">
+    <div id="map"><div class="offline" id="mapOffline"><div class="co num">—</div><div>No map tiles offline.<br>Node position shown by coordinates above.</div></div></div>
+  </div>
+
+  <!-- INFO (bottom) -->
+  <div class="sec">Telemetry <span class="r num" id="lastSeen">last —</span></div>
+  <div class="card"><div class="body">
+    <div class="tele">
+      <div class="cell"><div class="lab">Latitude</div><div class="num" id="tLat">—</div></div>
+      <div class="cell"><div class="lab">Longitude</div><div class="num" id="tLon">—</div></div>
+      <div class="cell"><div class="lab">Fix</div><div class="num" id="tFix">—</div></div>
+      <div class="cell"><div class="lab">Satellites</div><div class="num" id="tSats">—</div></div>
+      <div class="cell"><div class="lab">Node battery</div><div class="num" id="tBat">—</div></div>
+      <div class="cell"><div class="lab">LTE signal</div><div class="num" id="tRf">—</div></div>
+      <div class="cell"><div class="lab">Operator</div><div class="num" id="tOp">—</div></div>
+      <div class="cell"><div class="lab">Network</div><div class="num" id="tNet">—</div></div>
+    </div>
+  </div></div>
+
+  <div class="sec">Off-grid unlock <span class="r num" id="loraLeft">--s</span></div>
+  <div class="card lora"><div class="body">
+    <div class="kv"><span>LoRa</span> · works only when the car has no 4G</div>
+    <div class="num" id="loraCode">PJRO UNLOCK ——————</div>
+    <div class="glow"></div>
+    <div class="sub">Paste into Meshtastic on your private channel</div>
+    <button class="copy" id="loraCopy">Copy code</button>
+  </div></div>
+
+  <div class="sec">Field log <span class="r" id="logCount">0 entries</span></div>
+  <div class="card"><div class="body">
+    <div class="logadd">
+      <label class="attach" id="phLbl"><span id="phTxt">▣ Photo</span><input type="file" accept="image/*" capture="environment" id="phIn"></label>
+      <label class="attach" id="vcLbl"><span id="vcTxt">◉ Voice</span><input type="file" accept="audio/*" capture id="vcIn"></label>
+    </div>
+    <textarea id="note" rows="2" placeholder="Note — stamped with the node's current coordinates…"></textarea>
+    <button class="save" id="saveBtn" disabled>Log entry</button>
+    <div class="entries" id="entries"><div class="empty">No entries yet. Photos and voice stay on this phone, pinned to the node's position.</div></div>
+  </div></div>
+
+  <div class="sec">Connection <span class="r tap" id="connToggle">setup ▾</span></div>
+  <div class="card collapsed" id="connCard"><div class="body">
+    <div class="field"><label>Broker (WSS URL)</label><input id="cBroker" placeholder="wss://xxxx.hivemq.cloud:8884/mqtt" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="row2">
+      <div class="field"><label>Username</label><input id="cUser" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="field"><label>Password</label><input id="cPass" type="password"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Device ID</label><input id="cId" value="pajero1" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="field"><label>Command secret</label><input id="cSecret" type="password"></div>
+    </div>
+    <button class="connect" id="connectBtn">Connect</button>
+  </div></div>
+
+  <div class="foot">Built for where the road ends</div>
+  <div id="dbg" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a8f98;
+    background:#111114;border:1px solid #27272e;border-radius:10px;padding:10px 12px;margin-top:14px;
+    line-height:1.6;word-break:break-all">diag: starting…</div>
+  <div id="toast"><span class="bar"></span><span id="toastTxt"></span></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+"use strict";
+/* compact SHA-256 (public-domain style) -> lowercase hex; matches the node's mbedtls output */
+function sha256hex(ascii){
+  function rotr(n,x){return (x>>>n)|(x<<(32-n));}
+  var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bytes=[]; for(var i=0;i<ascii.length;i++) bytes.push(ascii.charCodeAt(i)&0xff);
+  var l=bytes.length, bl=l*8; bytes.push(0x80);
+  while(bytes.length%64!=56) bytes.push(0);
+  for(var i=7;i>=0;i--) bytes.push((bl/Math.pow(2,8*i))&0xff);
+  for(var j=0;j<bytes.length;j+=64){
+    var w=new Array(64);
+    for(var i=0;i<16;i++) w[i]=(bytes[j+i*4]<<24)|(bytes[j+i*4+1]<<16)|(bytes[j+i*4+2]<<8)|(bytes[j+i*4+3]);
+    for(var i=16;i<64;i++){
+      var s0=rotr(7,w[i-15])^rotr(18,w[i-15])^(w[i-15]>>>3);
+      var s1=rotr(17,w[i-2])^rotr(19,w[i-2])^(w[i-2]>>>10);
+      w[i]=(w[i-16]+s0+w[i-7]+s1)|0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(var i=0;i<64;i++){
+      var S1=rotr(6,e)^rotr(11,e)^rotr(25,e);
+      var ch=(e&f)^((~e)&g);
+      var t1=(h+S1+ch+K[i]+w[i])|0;
+      var S0=rotr(2,a)^rotr(13,a)^rotr(22,a);
+      var mj=(a&b)^(a&c)^(b&c);
+      var t2=(S0+mj)|0;
+      h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;
+    }
+    H[0]=(H[0]+a)|0;H[1]=(H[1]+b)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;
+    H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+h)|0;
+  }
+  var out=""; for(var i=0;i<8;i++){ var v=(H[i]>>>0).toString(16); out+="00000000".slice(v.length)+v; }
+  return out;
+}
+function meshToken(secret,step){ return sha256hex(secret+":"+step).slice(0,6); }
+
+/* ================================================================
+   Pajero Node — remote control over the internet via MQTT/TLS.
+   Fill CONFIG (or the in-app Connection panel) with your broker.
+   Until connected it runs a DEMO node so the UI is fully alive.
+
+   Node <-> topics:
+     publishes  pajero/<id>/status   {lat,lon,fix,sats,bat,csq,op,net,blackbox,ts}
+     subscribes pajero/<id>/cmd      {cmd:"unlock"|"lock"|"blackbox", state?, secret}
+
+   Node = LILYGO SIM7670G board: LTE Cat-1 + GNSS from the modem.
+   Node connects to the broker on mqtts://:8883 (native MQTT/TLS).
+   This app connects on wss://:8884/mqtt (browsers need WebSockets).
+   Same broker, same topics, different transport.
+   ================================================================ */
+const CONFIG = {
+  broker:   "wss://7e8b557fbc1e49c6b158e020ea18b265.s1.eu.hivemq.cloud:8884/mqtt",
+  username: "pajero2",
+  password: "pajeropassword123",   // change to match HiveMQ once you harden it
+  deviceId: "pajero1",             // must match the firmware
+  secret:   "8yQgTSIEpMzWISaVBQ6uUmQhmXVY"  // must match the firmware SECRET
+};
+const STALE_MS = 15000;   // no status for this long => link considered down
+
+const $ = id => document.getElementById(id);
+let client=null, demo=true, connected=false, state=null, lastMsg=0;
+let _msgs=0, _sub="—", _err="—", _lastTopic="—";
+function diag(){ var e=document.getElementById("dbg"); if(!e)return;
+  e.textContent="conn:"+(connected?"yes":"no")+"  sub:"+_sub+"  msgs:"+_msgs
+    +"  last:"+_lastTopic+"  err:"+_err; }
+setInterval(diag,1000);
+let map=null, marker=null, tilesOK=false, bbBusy=false, bbLeft=0;
+
+/* ---------- toast ---------- */
+let tHide;
+function toast(msg){ $("toastTxt").textContent=msg; const t=$("toast");
+  t.classList.add("show"); clearTimeout(tHide); tHide=setTimeout(()=>t.classList.remove("show"),1800); }
+
+/* ---------- prefill connection fields from CONFIG ---------- */
+$("cBroker").value=CONFIG.broker; $("cUser").value=CONFIG.username; $("cPass").value=CONFIG.password;
+$("cId").value=CONFIG.deviceId||"pajero1"; $("cSecret").value=CONFIG.secret;
+$("connToggle").addEventListener("click",()=>{ $("connCard").classList.toggle("collapsed");
+  $("connToggle").textContent = $("connCard").classList.contains("collapsed") ? "setup ▾" : "hide ▴"; });
+$("connectBtn").addEventListener("click",()=>{
+  CONFIG.broker=$("cBroker").value.trim(); CONFIG.username=$("cUser").value.trim();
+  CONFIG.password=$("cPass").value; CONFIG.deviceId=$("cId").value.trim()||"pajero1"; CONFIG.secret=$("cSecret").value;
+  connect();
+});
+
+/* ---------- MQTT ---------- */
+function topics(){ const b="pajero/"+CONFIG.deviceId; return {status:b+"/status", cmd:b+"/cmd"}; }
+function connect(){
+  if(!CONFIG.broker){ toast("Enter a broker URL first"); return; }
+  if(client){ try{client.end(true);}catch(e){} client=null; }
+  setBanner("demo","Connecting to broker…");
+  const cid="pajeroapp-"+Math.random().toString(16).slice(2,8);
+  try{
+    client=mqtt.connect(CONFIG.broker,{username:CONFIG.username,password:CONFIG.password,
+      clientId:cid,reconnectPeriod:4000,connectTimeout:8000,clean:true});
+  }catch(e){ setBanner("err","Bad broker URL."); return; }
+
+  client.on("connect",()=>{ connected=true; demo=false;
+    client.subscribe("pajero/#",{qos:0},(err,granted)=>{
+      if(err){ _sub="ERR"; setBanner("err","Connected, but couldn't subscribe."); }
+      else if(!granted || !granted.length || granted[0].qos===128){
+        _sub="DENIED"; setBanner("err","Broker DENIED the subscription. Set the login's topic permission to # in HiveMQ.");
+      } else {
+        _sub="qos"+granted[0].qos; setBanner("live","Connected — waiting for the node to report…");
+      }
+      diag();
+    });
+    toast("Broker connected");
+  });
+  client.on("message",(t,payload)=>{
+    _msgs++; _lastTopic=t; diag();
+    if(!t.endsWith("/status")) return;
+    let txt;
+    try{ txt=(typeof payload==="string")?payload:new TextDecoder().decode(payload); }
+    catch(e){ txt=String(payload); }
+    try{ const s=JSON.parse(txt); lastMsg=Date.now(); demo=false; render(s); }
+    catch(e){ _err="parse:"+txt.slice(0,24); diag(); }
+  });
+  client.on("error",e=>{ _err=(e&&e.message)?e.message.slice(0,40):"error"; diag(); setBanner("err","Broker error — check URL / login."); });
+  client.on("close",()=>{ if(connected){ connected=false; } });
+  client.on("offline",()=>{ setBanner("err","Broker offline — retrying…"); });
+}
+
+function publishCmd(cmd,extra){
+  const payload=JSON.stringify(Object.assign({cmd,secret:CONFIG.secret,ts:Date.now()},extra||{}));
+  if(demo || !client || !connected){
+    // demo behaviour so the UI still responds
+    if(cmd==="blackbox") demoPulse();
+    toast(label(cmd)+" (demo)"); return;
+  }
+  client.publish(topics().cmd,payload,{qos:1},err=>{
+    toast(err? label(cmd)+" failed" : label(cmd)+" sent");
+  });
+}
+function label(c){ return c==="unlock"?"Unlock":c==="lock"?"Lock":c==="gate"?"Gate":"Black Box"; }
+
+/* ---------- link freshness watchdog ---------- */
+setInterval(()=>{
+  if(demo){ render(demoStatus()); return; }
+  const age=Date.now()-lastMsg;
+  if(connected && lastMsg>0 && age>STALE_MS){ setBanner("err","Connected, but node silent ("+Math.round(age/1000)+"s)."); markLinkDown(); }
+},4000);
+function markLinkDown(){ $("dLink").className="dot off"; $("vLink").textContent="SILENT"; setGauge("gLink","off"); }
+
+/* ---------- demo node ---------- */
+let dLat=31.7683,dLon=35.2137,dBat=87,dSeq=0;
+function demoStatus(){ dSeq++; dLat+=(Math.random()-.5)*.0004; dLon+=(Math.random()-.5)*.0004;
+  if(dSeq%15===0)dBat=Math.max(72,dBat-1);
+  return{lat:+dLat.toFixed(5),lon:+dLon.toFixed(5),fix:"3D",sats:7+Math.floor(Math.random()*3),
+    bat:dBat,csq:16+Math.floor(Math.random()*6),op:"Partner",net:"LTE",bb:bbBusy,bbLeft:bbLeft,ts:Date.now()}; }
+
+// demo-only: mimic the node's 10s press so the countdown is testable
+function demoPulse(){
+  bbBusy=true; bbLeft=10000;
+  const iv=setInterval(()=>{
+    bbLeft-=250;
+    if(bbLeft<=0){ bbBusy=false; bbLeft=0; clearInterval(iv); }
+    renderBB();
+  },250);
+}
+
+/* ---------- render ---------- */
+function setBanner(cls,msg){ const b=$("banner"); b.className="banner "+cls; $("bannerTxt").textContent=msg; }
+function fmtAge(ts){ if(!ts||ts<1700000000000)return"live"; const ms=Date.now()-ts; if(ms<2500)return"live";
+  const s=Math.round(ms/1000); return s<60? s+"s ago":Math.round(s/60)+"m ago"; }
+// modem reports CSQ 0..31 (99 = unknown); convert to dBm the standard way
+function csqText(csq){
+  if(csq==null||csq===99) return "—";
+  const dbm=-113+2*csq;
+  const q = csq>=20?"good":csq>=12?"ok":"weak";
+  return dbm+' <small>dBm · '+q+'</small>';
+}
+
+function render(s){
+  state=s; bbBusy=!!s.bb; bbLeft=s.bbLeft||0;
+  setBanner(demo?"demo":"live", demo?"Not connected — running demo.":"Node connected — live data.");
+
+  const dl=$("dLink"); dl.className="dot on"; $("vLink").textContent=demo?"DEMO":"UP";
+  setGauge("gLink",demo?"warn":"on");
+  const lock=s.fix==="3D"||s.fix==="2D";
+  $("vGps").textContent=lock?s.fix:"NO FIX"; setGauge("gGps",lock?"on":"off");
+  $("vPwr").textContent=(s.bat!=null?s.bat+"%":"—"); setGauge("gPwr",s.bat>40?"on":(s.bat>15?"warn":"off"));
+
+  $("tLat").textContent=s.lat!=null?s.lat.toFixed(5):"—";
+  $("tLon").textContent=s.lon!=null?s.lon.toFixed(5):"—";
+  $("tFix").textContent=s.fix||"—";
+  $("tSats").textContent=s.sats!=null?s.sats:"—";
+  $("tBat").innerHTML=s.bat!=null?s.bat+' <small>%</small>':"—";
+  $("tRf").innerHTML=csqText(s.csq);
+  $("tOp").textContent=s.op||"—";
+  $("tNet").textContent=s.net||"—";
+  $("lastSeen").textContent="last "+fmtAge(s.ts);
+  const co=(s.lat!=null)?s.lat.toFixed(5)+", "+s.lon.toFixed(5):"—";
+  $("mapCoord").textContent=co; $("mapOffline").querySelector(".co").textContent=co;
+  renderBB(); updateMap(s.lat,s.lon);
+}
+function renderBB(){ const b=$("bbBtn");
+  b.classList.toggle("armed",bbBusy);
+  if(bbBusy){
+    const s=Math.ceil(bbLeft/1000);
+    $("bbPill").textContent=s+"s";
+    $("bbSub").textContent="holding the button down…";
+  } else {
+    $("bbPill").textContent="PRESS";
+    $("bbSub").textContent="10-second press";
+  }
+}
+function setGauge(id,cls){ const g=$(id); g.classList.remove("on","warn","off"); if(cls)g.classList.add(cls); }
+
+/* ---------- map ---------- */
+function initMap(){ try{
+  map=L.map("map",{zoomControl:false,attributionControl:false}).setView([31.7683,35.2137],14);
+  const tl=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19});
+  tl.on("tileload",()=>{ if(!tilesOK){tilesOK=true;$("mapOffline").style.display="none";} });
+  tl.on("tileerror",()=>{ if(!tilesOK)$("mapOffline").style.display="flex"; });
+  tl.addTo(map);
+}catch(e){ $("mapOffline").style.display="flex"; } }
+function updateMap(lat,lon){ if(!map||lat==null)return; const p=[lat,lon];
+  if(!marker){ const ic=L.divIcon({className:"",html:'<div style="width:18px;height:18px;border-radius:50%;background:#FF7A18;border:3px solid #14171A;box-shadow:0 0 0 2px #FF7A18,0 0 14px #FF7A18"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+    marker=L.marker(p,{icon:ic}).addTo(map); map.setView(p,15);
+  } else marker.setLatLng(p); }
+
+/* ---------- commands ---------- */
+document.querySelectorAll(".cmd").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    const cmd=btn.dataset.cmd;
+    if(cmd==="blackbox" && bbBusy){ toast("Already pressing…"); return; }
+    publishCmd(cmd);
+  });
+});
+
+/* ---------- field log (in-memory) ---------- */
+let photo=null,voice=null; const entries=[];
+function readFile(inp,cb){ const f=inp.files&&inp.files[0]; if(!f){cb(null);return;}
+  const rd=new FileReader(); rd.onload=()=>cb({url:rd.result,name:f.name}); rd.readAsDataURL(f); }
+$("phIn").addEventListener("change",e=>readFile(e.target,d=>{ photo=d;
+  $("phLbl").classList.toggle("set",!!d); $("phTxt").textContent=d?"▣ Photo ✓":"▣ Photo"; refreshSave(); }));
+$("vcIn").addEventListener("change",e=>readFile(e.target,d=>{ voice=d;
+  $("vcLbl").classList.toggle("set",!!d); $("vcTxt").textContent=d?"◉ Voice ✓":"◉ Voice"; refreshSave(); }));
+$("note").addEventListener("input",refreshSave);
+function refreshSave(){ $("saveBtn").disabled=!($("note").value.trim()||photo||voice); }
+$("saveBtn").addEventListener("click",()=>{ const s=state||{};
+  entries.unshift({t:Date.now(),lat:s.lat,lon:s.lon,note:$("note").value.trim(),photo,voice});
+  photo=voice=null; $("note").value=""; $("phIn").value=""; $("vcIn").value="";
+  $("phLbl").classList.remove("set"); $("vcLbl").classList.remove("set");
+  $("phTxt").textContent="▣ Photo"; $("vcTxt").textContent="◉ Voice"; refreshSave(); renderEntries(); toast("Entry logged"); });
+function renderEntries(){ $("logCount").textContent=entries.length+(entries.length===1?" entry":" entries");
+  const box=$("entries");
+  if(!entries.length){ box.innerHTML='<div class="empty">No entries yet. Photos and voice stay on this phone, pinned to the node\'s position.</div>'; return; }
+  box.innerHTML="";
+  entries.forEach(e=>{ const co=e.lat!=null?e.lat.toFixed(5)+", "+e.lon.toFixed(5):"no fix";
+    const time=new Date(e.t).toLocaleString(); const d=document.createElement("div"); d.className="entry";
+    let media=""; if(e.photo)media+='<img src="'+e.photo.url+'" alt="log photo">'; if(e.voice)media+='<audio controls src="'+e.voice.url+'"></audio>';
+    d.innerHTML='<div class="meta"><span class="mono co">'+co+'</span><span class="mono">'+time+'</span></div>'+
+      (e.note?'<div class="txt">'+e.note.replace(/</g,"&lt;")+'</div>':'')+(media?'<div class="media">'+media+'</div>':'');
+    box.appendChild(d); });
+}
+
+/* ---------- boot ---------- */
+
+/* ---------- off-grid LoRa unlock code ---------- */
+function renderLora(){
+  const now=Math.floor(Date.now()/1000);
+  const left=60-(now%60);
+  $("loraLeft").textContent=left+"s";
+  const sec=(CONFIG.secret||$("cSecret").value||"").trim();
+  if(!sec){ $("loraCode").textContent="set secret first"; return; }
+  const step=Math.floor(now/60);
+  const tok=meshToken(sec,step);
+  $("loraCode").textContent="PJRO UNLOCK "+tok;
+}
+$("loraCopy").addEventListener("click",()=>{
+  const txt=$("loraCode").textContent;
+  if(!txt.startsWith("PJRO")){ toast("Set your secret first"); return; }
+  (navigator.clipboard&&navigator.clipboard.writeText(txt).then(()=>toast("Code copied"),()=>toast(txt)))||toast(txt);
+});
+setInterval(renderLora,1000); renderLora();
+
+initMap(); render(demoStatus());
+if(CONFIG.broker) connect();
+</script>
+</body>
+</html>
