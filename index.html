@@ -220,7 +220,9 @@
   </div>
 
   <!-- MAP (middle) -->
-  <div class="sec">Position <span class="r num" id="mapCoord">—</span></div>
+  <div class="sec">Position
+    <span class="r tap" id="followBtn" style="margin-left:auto">◎ follow</span>
+    <span class="r num" id="mapCoord" style="margin-left:10px">—</span></div>
   <div class="map-wrap">
     <div id="map"><div class="offline" id="mapOffline"><div class="co num">—</div><div>No map tiles offline.<br>Node position shown by coordinates above.</div></div></div>
   </div>
@@ -373,7 +375,7 @@ function diag(){ var e=document.getElementById("dbg"); if(!e)return;
   e.textContent="conn:"+(connected?"yes":"no")+"  sub:"+_sub+"  msgs:"+_msgs
     +"  last:"+_lastTopic+"  err:"+_err; }
 setInterval(diag,1000);
-let map=null, marker=null, tilesOK=false, bbBusy=false, bbLeft=0;
+let map=null, marker=null, tilesOK=false, bbBusy=false, bbLeft=0, follow=true;
 
 /* ---------- toast ---------- */
 let tHide;
@@ -440,6 +442,8 @@ function publishCmd(cmd,extra){
     toast(err? label(cmd)+" failed" : label(cmd)+" sent");
   });
 }
+$("followBtn").addEventListener("click",()=>setFollow(!follow));
+
 document.querySelectorAll("[data-geo]").forEach(b=>{
   b.addEventListener("click",()=>{
     const a=b.dataset.geo;
@@ -541,11 +545,29 @@ function initMap(){ try{
   tl.on("tileload",()=>{ if(!tilesOK){tilesOK=true;$("mapOffline").style.display="none";} });
   tl.on("tileerror",()=>{ if(!tilesOK)$("mapOffline").style.display="flex"; });
   tl.addTo(map);
+  // any manual pan/zoom drops follow mode, so the map stops fighting you
+  map.on("dragstart",()=>setFollow(false));
+  map.on("zoomstart",e=>{ if(!followProgrammatic) setFollow(false); });
 }catch(e){ $("mapOffline").style.display="flex"; } }
+
+let followProgrammatic=false;
+function setFollow(on){
+  follow=on;
+  const b=$("followBtn"); if(!b)return;
+  b.textContent = on ? "◎ follow" : "○ free";
+  b.style.color = on ? "var(--ice)" : "var(--dim)";
+  if(on && marker){ followProgrammatic=true; map.setView(marker.getLatLng(), map.getZoom(), {animate:true});
+    setTimeout(()=>followProgrammatic=false,400); }
+}
 function updateMap(lat,lon){ if(!map||lat==null)return; const p=[lat,lon];
-  if(!marker){ const ic=L.divIcon({className:"",html:'<div style="width:18px;height:18px;border-radius:50%;background:#FF7A18;border:3px solid #14171A;box-shadow:0 0 0 2px #FF7A18,0 0 14px #FF7A18"></div>',iconSize:[18,18],iconAnchor:[9,9]});
-    marker=L.marker(p,{icon:ic}).addTo(map); map.setView(p,15);
-  } else marker.setLatLng(p); }
+  if(!marker){ const ic=L.divIcon({className:"",html:'<div style="width:18px;height:18px;border-radius:50%;background:#D50F2C;border:3px solid #141418;box-shadow:0 0 0 2px #D50F2C,0 0 14px rgba(213,15,44,.8)"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+    marker=L.marker(p,{icon:ic}).addTo(map); followProgrammatic=true; map.setView(p,15);
+    setTimeout(()=>followProgrammatic=false,400);
+  } else {
+    marker.setLatLng(p);
+    if(follow){ followProgrammatic=true; map.panTo(p,{animate:true,duration:.6});
+      setTimeout(()=>followProgrammatic=false,800); }
+  } }
 
 /* ---------- commands ---------- */
 document.querySelectorAll(".cmd").forEach(btn=>{
