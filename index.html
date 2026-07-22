@@ -240,6 +240,21 @@
     </div>
   </div></div>
 
+  <div class="sec">Geofence &amp; alerts <span class="r" id="geoState">—</span></div>
+  <div class="card"><div class="body">
+    <div class="tele" style="margin-bottom:14px">
+      <div class="cell"><div class="lab">Home point</div><div class="num" id="gHome">—</div></div>
+      <div class="cell"><div class="lab">Auto gate</div><div class="num" id="gAuto">—</div></div>
+    </div>
+    <div class="field"><label>Fence radius (metres)</label><input id="gRad" type="number" value="120" inputmode="numeric"></div>
+    <div class="cmds">
+      <button class="cmd gate" data-geo="sethome">Set home<small>uses car's GPS now</small></button>
+      <button class="cmd lock" data-geo="gatetoggle">Auto gate<small>on / off</small></button>
+      <button class="cmd gate" data-geo="tgtest">Test alert<small>sends to Telegram</small></button>
+      <button class="cmd unlock" data-geo="clearhome">Clear fence<small>remove home point</small></button>
+    </div>
+  </div></div>
+
   <div class="sec">Off-grid unlock <span class="r num" id="loraLeft">--s</span></div>
   <div class="card lora"><div class="body">
     <div class="kv"><span>LoRa</span> · works only when the car has no 4G</div>
@@ -425,7 +440,20 @@ function publishCmd(cmd,extra){
     toast(err? label(cmd)+" failed" : label(cmd)+" sent");
   });
 }
-function label(c){ return c==="unlock"?"Unlock":c==="lock"?"Lock":c==="gate"?"Gate":"Black Box"; }
+document.querySelectorAll("[data-geo]").forEach(b=>{
+  b.addEventListener("click",()=>{
+    const a=b.dataset.geo;
+    const r=parseInt($("gRad").value,10)||120;
+    if(a==="sethome")        publishCmd("sethome",{radius:r});
+    else if(a==="clearhome") publishCmd("clearhome");
+    else if(a==="tgtest")    publishCmd("tgtest");
+    else if(a==="gatetoggle")publishCmd("gateauto",{on:!(state&&state.gauto)});
+  });
+});
+
+function label(c){ return c==="unlock"?"Unlock":c==="lock"?"Lock":c==="gate"?"Gate":
+  c==="blackbox"?"Black Box":c==="sethome"?"Set home":c==="clearhome"?"Clear fence":
+  c==="tgtest"?"Test alert":c==="gateauto"?"Auto gate":c; }
 
 /* ---------- link freshness watchdog ---------- */
 setInterval(()=>{
@@ -466,6 +494,12 @@ function csqText(csq){
 
 function render(s){
   state=s; bbBusy=!!s.bb; bbLeft=s.bbLeft||0;
+  if($("gHome")){
+    $("gHome").textContent = s.home ? "set" : "not set";
+    $("gAuto").textContent = s.gauto ? "ON" : "off";
+    $("geoState").textContent = !s.home ? "no fence"
+      : (s.inside ? "at home" : "away") + (s.drive ? " · driving" : "");
+  }
   setBanner(demo?"demo":"live", demo?"Not connected — running demo.":"Node connected — live data.");
 
   const dl=$("dLink"); dl.className="dot on"; $("vLink").textContent=demo?"DEMO":"UP";
