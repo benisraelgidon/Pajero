@@ -91,7 +91,13 @@
     gap:4px;min-height:74px;justify-content:center;-webkit-tap-highlight-color:transparent}
   .cmd .ic{display:none}
   .cmd small{font-family:"Inter";font-size:11.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted)}
-  .cmd:active{transform:scale(.985)}
+  .cmd{position:relative;overflow:hidden}
+  .cmd:active{transform:scale(.96);filter:brightness(1.35)}
+  .cmd.pending{opacity:.55}
+  .cmd.ok{border-color:var(--ok)!important;box-shadow:0 0 0 2px rgba(79,208,138,.35) inset}
+  .cmd .rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.30);
+    transform:scale(0);animation:rip .55s ease-out forwards;pointer-events:none}
+  @keyframes rip{to{transform:scale(2.6);opacity:0}}
   .cmd.unlock{border-color:rgba(213,15,44,.5)} .cmd.unlock:active{background:rgba(213,15,44,.12)} .cmd.unlock small{color:var(--red)}
   .cmd.lock small{color:var(--gold)}
   .cmd.gate small{color:var(--ice)}
@@ -279,6 +285,14 @@
     <div class="entries" id="entries"><div class="empty">No entries yet. Photos and voice stay on this phone, pinned to the node's position.</div></div>
   </div></div>
 
+  <div class="sec">Node log <span class="r tap" id="logToggle">show ▾</span></div>
+  <div class="card collapsed" id="logCard"><div class="body">
+    <div id="nodeLog" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;
+      line-height:1.65;color:var(--muted);max-height:210px;overflow-y:auto;word-break:break-word">
+      Waiting for the node…</div>
+    <button class="connect" id="logClear" style="margin-top:12px">Clear</button>
+  </div></div>
+
   <div class="sec">Connection <span class="r tap" id="connToggle">setup ▾</span></div>
   <div class="card collapsed" id="connCard"><div class="body">
     <div class="field"><label>Broker (WSS URL)</label><input id="cBroker" placeholder="wss://xxxx.hivemq.cloud:8884/mqtt" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
@@ -419,6 +433,13 @@ function connect(){
   });
   client.on("message",(t,payload)=>{
     _msgs++; _lastTopic=t; diag();
+    if(t.endsWith("/log")){
+      const line=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
+      pushLog(line);
+      const m=line.match(/\[ack\]\s+(\w+)/);
+      if(m) confirmCmd(m[1]==="gateauto"?"gateauto":m[1]);
+      return;
+    }
     if(!t.endsWith("/status")) return;
     let txt;
     try{ txt=(typeof payload==="string")?payload:new TextDecoder().decode(payload); }
@@ -431,7 +452,30 @@ function connect(){
   client.on("offline",()=>{ setBanner("err","Broker offline — retrying…"); });
 }
 
-function publishCmd(cmd,extra){
+function ripple(el,ev){
+  if(!el) return;
+  const r=document.createElement("span"); r.className="rip";
+  const b=el.getBoundingClientRect(), d=Math.max(b.width,b.height);
+  r.style.width=r.style.height=d+"px";
+  r.style.left=((ev&&ev.clientX?ev.clientX-b.left:b.width/2)-d/2)+"px";
+  r.style.top =((ev&&ev.clientY?ev.clientY-b.top :b.height/2)-d/2)+"px";
+  el.appendChild(r); setTimeout(()=>r.remove(),600);
+  if(navigator.vibrate) navigator.vibrate(12);
+}
+const pending={};
+function markPending(cmd,el){
+  if(!el) return; pending[cmd]=el; el.classList.add("pending");
+  setTimeout(()=>{ if(pending[cmd]===el){ el.classList.remove("pending"); delete pending[cmd];
+    toast(label(cmd)+" — no reply from node"); } },8000);
+}
+function confirmCmd(cmd){
+  const el=pending[cmd]; if(!el) return;
+  el.classList.remove("pending"); el.classList.add("ok");
+  setTimeout(()=>el.classList.remove("ok"),1200);
+  delete pending[cmd];
+}
+
+function publishCmd(cmd,extra,el){
   const payload=JSON.stringify(Object.assign({cmd,secret:CONFIG.secret,ts:Date.now()},extra||{}));
   if(demo || !client || !connected){
     // demo behaviour so the UI still responds
@@ -439,19 +483,21 @@ function publishCmd(cmd,extra){
     toast(label(cmd)+" (demo)"); return;
   }
   client.publish(topics().cmd,payload,{qos:1},err=>{
-    toast(err? label(cmd)+" failed" : label(cmd)+" sent");
+    if(err){ toast(label(cmd)+" failed"); if(el)el.classList.remove("pending"); }
+    else { toast(label(cmd)+" sent"); markPending(cmd,el); }
   });
 }
 $("followBtn").addEventListener("click",()=>setFollow(!follow));
 
 document.querySelectorAll("[data-geo]").forEach(b=>{
-  b.addEventListener("click",()=>{
+  b.addEventListener("click",(ev)=>{
+    ripple(b,ev);
     const a=b.dataset.geo;
     const r=parseInt($("gRad").value,10)||120;
-    if(a==="sethome")        publishCmd("sethome",{radius:r});
-    else if(a==="clearhome") publishCmd("clearhome");
-    else if(a==="tgtest")    publishCmd("tgtest");
-    else if(a==="gatetoggle")publishCmd("gateauto",{on:!(state&&state.gauto)});
+    if(a==="sethome")        publishCmd("sethome",{radius:r},b);
+    else if(a==="clearhome") publishCmd("clearhome",null,b);
+    else if(a==="tgtest")    publishCmd("tgtest",null,b);
+    else if(a==="gatetoggle")publishCmd("gateauto",{on:!(state&&state.gauto)},b);
   });
 });
 
@@ -571,12 +617,30 @@ function updateMap(lat,lon){ if(!map||lat==null)return; const p=[lat,lon];
 
 /* ---------- commands ---------- */
 document.querySelectorAll(".cmd").forEach(btn=>{
-  btn.addEventListener("click",()=>{
+  btn.addEventListener("click",(ev)=>{
     const cmd=btn.dataset.cmd;
+    if(!cmd) return;                       // geofence buttons handle themselves
+    ripple(btn,ev);
     if(cmd==="blackbox" && bbBusy){ toast("Already pressing…"); return; }
-    publishCmd(cmd);
+    publishCmd(cmd,null,btn);
   });
 });
+
+/* ---------- node log (remote serial monitor) ---------- */
+const logLines=[];
+function pushLog(line){
+  const t=new Date().toTimeString().slice(0,8);
+  logLines.push(t+"  "+line);
+  if(logLines.length>200) logLines.shift();
+  const el=$("nodeLog"); if(!el) return;
+  el.textContent=logLines.join("\n");
+  el.scrollTop=el.scrollHeight;
+}
+$("logToggle").addEventListener("click",()=>{
+  const c=$("logCard"), open=c.classList.toggle("collapsed");
+  $("logToggle").textContent=open?"show ▾":"hide ▴";
+});
+$("logClear").addEventListener("click",()=>{ logLines.length=0; $("nodeLog").textContent="Cleared."; });
 
 /* ---------- field log (in-memory) ---------- */
 let photo=null,voice=null; const entries=[];
