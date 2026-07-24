@@ -210,7 +210,7 @@
   <div class="cluster">
     <div class="gauge" id="gLink"><div class="k">Link</div><div class="v"><span class="dot" id="dLink"></span><span id="vLink">—</span></div></div>
     <div class="gauge" id="gGps"><div class="k">GPS</div><div class="v" id="vGps">—</div></div>
-    <div class="gauge" id="gPwr"><div class="k">Node</div><div class="v" id="vPwr">—</div></div>
+    <div class="gauge" id="gPwr"><div class="k">Speed</div><div class="v" id="vPwr">—</div></div>
   </div>
 
   <!-- CONTROLS (top) -->
@@ -241,7 +241,6 @@
       <div class="cell"><div class="lab">Longitude</div><div class="num" id="tLon">—</div></div>
       <div class="cell"><div class="lab">Fix</div><div class="num" id="tFix">—</div></div>
       <div class="cell"><div class="lab">Satellites</div><div class="num" id="tSats">—</div></div>
-      <div class="cell"><div class="lab">Node battery</div><div class="num" id="tBat">—</div></div>
       <div class="cell"><div class="lab">LTE signal</div><div class="num" id="tRf">—</div></div>
       <div class="cell"><div class="lab">Operator</div><div class="num" id="tOp">—</div></div>
       <div class="cell"><div class="lab">Network</div><div class="num" id="tNet">—</div></div>
@@ -291,6 +290,19 @@
       line-height:1.65;color:var(--muted);max-height:210px;overflow-y:auto;word-break:break-word">
       Waiting for the node…</div>
     <button class="connect" id="logClear" style="margin-top:12px">Clear</button>
+  </div></div>
+
+  <div class="sec">Firmware update <span class="r tap" id="otaToggle">show ▾</span></div>
+  <div class="card collapsed" id="otaCard"><div class="body">
+    <div class="field"><label>Firmware .bin URL</label>
+      <input id="otaUrl" placeholder="https://github.com/.../pajero_node.bin"
+             autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="field"><label>SHA-256 of that file (64 hex chars)</label>
+      <input id="otaSha" placeholder="a3f1…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <button class="save" id="otaGo">Send update</button>
+    <div class="sub" style="margin-top:12px">The node checks the hash before
+      installing. A wrong hash is discarded and the current firmware keeps
+      running. Watch the Node log for progress.</div>
   </div></div>
 
   <div class="sec">Connection <span class="r tap" id="connToggle">setup ▾</span></div>
@@ -365,7 +377,7 @@ function meshToken(secret,step){ return sha256hex(secret+":"+step).slice(0,6); }
    Until connected it runs a DEMO node so the UI is fully alive.
 
    Node <-> topics:
-     publishes  pajero/<id>/status   {lat,lon,fix,sats,bat,csq,op,net,blackbox,ts}
+     publishes  pajero/<id>/status   {lat,lon,fix,sats,spd,csq,op,net,blackbox,ts}
      subscribes pajero/<id>/cmd      {cmd:"unlock"|"lock"|"blackbox", state?, secret}
 
    Node = LILYGO SIM7670G board: LTE Cat-1 + GNSS from the modem.
@@ -497,6 +509,19 @@ function publishCmd(cmd,extra,el){
 }
 $("followBtn").addEventListener("click",()=>setFollow(!follow));
 
+$("otaToggle").addEventListener("click",()=>{
+  const open=$("otaCard").classList.toggle("collapsed");
+  $("otaToggle").textContent=open?"show ▾":"hide ▴";
+});
+$("otaGo").addEventListener("click",(ev)=>{
+  const u=$("otaUrl").value.trim(), h=$("otaSha").value.trim().toLowerCase();
+  if(!/^https?:\/\//.test(u)){ toast("Enter a http(s) URL"); return; }
+  if(!/^[0-9a-f]{64}$/.test(h)){ toast("SHA-256 must be 64 hex characters"); return; }
+  ripple($("otaGo"),ev);
+  publishCmd("ota",{url:u,sha256:h});
+  toast("Update sent — watch the Node log");
+});
+
 document.querySelectorAll("[data-geo]").forEach(b=>{
   b.addEventListener("click",(ev)=>{
     ripple(b,ev);
@@ -564,13 +589,14 @@ function render(s){
   setGauge("gLink",demo?"warn":"on");
   const lock=s.fix==="3D"||s.fix==="2D";
   $("vGps").textContent=lock?s.fix:"NO FIX"; setGauge("gGps",lock?"on":"off");
-  $("vPwr").textContent=(s.bat!=null?s.bat+"%":"—"); setGauge("gPwr",s.bat>40?"on":(s.bat>15?"warn":"off"));
+  { const kmh=(typeof s.spd==="number")?s.spd:null;
+    $("vPwr").textContent = kmh!=null ? Math.round(kmh)+" km/h" : "—";
+    setGauge("gPwr", kmh==null ? "" : (kmh>1 ? "on" : "warn")); }
 
   $("tLat").textContent=s.lat!=null?s.lat.toFixed(5):"—";
   $("tLon").textContent=s.lon!=null?s.lon.toFixed(5):"—";
   $("tFix").textContent=s.fix||"—";
   $("tSats").textContent=s.sats!=null?s.sats:"—";
-  $("tBat").innerHTML=s.bat!=null?s.bat+' <small>%</small>':"—";
   $("tRf").innerHTML=csqText(s.csq);
   $("tOp").textContent=s.op||"—";
   $("tNet").textContent=s.net||"—";
