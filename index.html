@@ -241,6 +241,7 @@
       <div class="cell"><div class="lab">Longitude</div><div class="num" id="tLon">—</div></div>
       <div class="cell"><div class="lab">Fix</div><div class="num" id="tFix">—</div></div>
       <div class="cell"><div class="lab">Satellites</div><div class="num" id="tSats">—</div></div>
+      <div class="cell"><div class="lab">Node battery</div><div class="num" id="tBat">—</div></div>
       <div class="cell"><div class="lab">LTE signal</div><div class="num" id="tRf">—</div></div>
       <div class="cell"><div class="lab">Operator</div><div class="num" id="tOp">—</div></div>
       <div class="cell"><div class="lab">Network</div><div class="num" id="tNet">—</div></div>
@@ -597,6 +598,9 @@ function render(s){
   $("tLon").textContent=s.lon!=null?s.lon.toFixed(5):"—";
   $("tFix").textContent=s.fix||"—";
   $("tSats").textContent=s.sats!=null?s.sats:"—";
+  $("tBat").innerHTML = (typeof s.bv==="number")
+      ? s.bv.toFixed(2)+' <small>V</small>' + (s.bat!=null? '  '+s.bat+' <small>%</small>':'')
+      : "—";
   $("tRf").innerHTML=csqText(s.csq);
   $("tOp").textContent=s.op||"—";
   $("tNet").textContent=s.net||"—";
