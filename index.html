@@ -114,6 +114,17 @@
   .cell .num,.cell>div:last-child{font-size:23px;font-weight:300;margin-top:4px;letter-spacing:-0.01em}
   .cell .num small{color:var(--muted);font-size:12px;font-weight:400}
 
+  .cellgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .cellrow{background:#0b0b0d;border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+  .cellrow .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .cellrow .v{font-size:16px;color:var(--text);margin-top:2px;font-variant-numeric:tabular-nums}
+  .cellrow .x{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+  .cellrow.full{grid-column:1/3}
+  .cellempty{color:var(--muted);font-size:13px;padding:6px 2px}
+  .cellloc{margin-top:13px;padding:11px;background:#0b0b0d;border:1px solid var(--line);border-radius:11px}
+  .cellloc a{color:var(--accent,#5ac8fa);text-decoration:none}
+  .bar{height:5px;border-radius:3px;background:#1a1a1e;margin-top:6px;overflow:hidden}
+  .bar>i{display:block;height:100%}
   /* map */
   #map{height:210px;background:#050506;position:relative}
   #map .offline{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -283,6 +294,18 @@
     <textarea id="note" rows="2" placeholder="Note — stamped with the node's current coordinates…"></textarea>
     <button class="save" id="saveBtn" disabled>Log entry</button>
     <div class="entries" id="entries"><div class="empty">No entries yet. Photos and voice stay on this phone, pinned to the node's position.</div></div>
+  </div></div>
+
+  <div class="sec">Cell &amp; signal <span class="r tap" id="cellToggle">show ▾</span></div>
+  <div class="card collapsed" id="cellCard"><div class="body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="connect" id="cellRefresh">Read cell</button>
+      <button class="connect" id="cellLocate">Locate via cell</button>
+      <button class="connect" id="cellData">Data used</button>
+      <button class="connect" id="cellHist">24h history</button>
+    </div>
+    <div id="cellGrid" class="cellgrid"><div class="cellempty">Tap “Read cell” to query the modem.</div></div>
+    <div id="cellLoc" class="cellloc" style="display:none"></div>
   </div></div>
 
   <div class="sec">Node log <span class="r tap" id="logToggle">show ▾</span></div>
@@ -459,6 +482,11 @@ function connect(){
       pushLog(line);
       const m=line.match(/\[ack\]\s+(\w+)/);
       if(m) confirmCmd(m[1]==="gateauto"?"gateauto":m[1]);
+      return;
+    }
+    if(t.endsWith("/cell")){
+      const raw=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
+      try{ renderCell(JSON.parse(raw)); }catch(e){ /* ignore malformed */ }
       return;
     }
     if(!t.endsWith("/status")) return;
@@ -653,7 +681,72 @@ function updateMap(lat,lon){ if(!map||lat==null)return; const p=[lat,lon];
       setTimeout(()=>followProgrammatic=false,800); }
   } }
 
+/* ---------- cell info + geolocation ---------- */
+let cellMarker=null, cellCircle=null;
+function q(dbm){ return dbm>=-80?["excellent","#34c759"]:dbm>=-90?["good","#8bc34a"]
+  :dbm>=-100?["fair","#ffcc00"]:dbm>=-110?["poor","#ff9500"]:["cell edge","#ff3b30"]; }
+function bar(pct,color){ pct=Math.max(0,Math.min(100,pct));
+  return '<div class="bar"><i style="width:'+pct+'%;background:'+color+'"></i></div>'; }
+
+function renderCell(c){
+  // location payload?
+  if(c.kind==="celloc"){
+    const el=$("cellLoc"); el.style.display="block";
+    el.innerHTML='<b>Cell location</b> (coarse, ~'+Math.round(c.range||0)+' m radius)<br>'+
+      c.lat.toFixed(5)+', '+c.lon.toFixed(5)+
+      ' &nbsp;<a href="https://maps.google.com/?q='+c.lat+','+c.lon+'" target="_blank">open ↗</a>';
+    dropCellPin(c.lat,c.lon,c.range||1000);
+    toast("Cell location received");
+    return;
+  }
+  // diagnostics payload
+  const rows=[];
+  const add=(k,v,x,full)=>rows.push('<div class="cellrow'+(full?' full':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(x?'<div class="x">'+x+'</div>':'')+'</div>');
+  const regTxt={0:"not searching",1:"registered (home)",2:"searching",3:"DENIED",4:"unknown",5:"registered (roaming)"}[c.reg]||("state "+c.reg);
+  add("Network", (c.mcc||"?")+"-"+(c.mnc||"?"), c.mcc===425?"Israel":"MCC-MNC");
+  add("Registration", regTxt, c.reg===3?"network refused — data plan?":"", true);
+  if(c.rat==="LTE"){
+    const [ql,qc]=q(c.rsrp);
+    // map RSRP -140..-44 to 0..100 for the bar
+    const pct=(c.rsrp+140)/(96)*100;
+    add("RSRP", c.rsrp.toFixed(1)+" dBm", "signal strength — "+ql+bar(pct,qc), true);
+    add("RSRQ", c.rsrq.toFixed(1)+" dB", ">-10 good, <-15 poor");
+    add("SINR", c.sinr.toFixed(1)+" dB", ">10 clean, <0 noisy");
+    add("eNodeB", c.enb, "the tower");
+    add("Cell", c.cid, c.cid===0?"macro (outdoor)":c.cid<8?"macro sector":"micro/indoor?");
+    add("TAC", c.tac, "tracking area");
+    add("EARFCN", c.earfcn, "LTE channel");
+    add("ECI", c.eci, "full cell identity", true);
+  } else {
+    add("RAT", c.rat||"—", "not LTE", true);
+  }
+  $("cellGrid").innerHTML=rows.join("");
+}
+
+function dropCellPin(lat,lon,range){
+  if(!map)return; const p=[lat,lon];
+  if(cellCircle){ map.removeLayer(cellCircle); }
+  cellCircle=L.circle(p,{radius:range,color:"#5ac8fa",weight:1,fillColor:"#5ac8fa",fillOpacity:.12}).addTo(map);
+  if(!cellMarker){
+    const ic=L.divIcon({className:"",html:'<div style="width:14px;height:14px;border-radius:50%;background:#5ac8fa;border:2px solid #141418;box-shadow:0 0 10px rgba(90,200,250,.9)"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+    cellMarker=L.marker(p,{icon:ic}).addTo(map);
+  } else cellMarker.setLatLng(p);
+  map.setView(p, 13);
+}
+
 /* ---------- commands ---------- */
+// cell panel buttons
+["cellRefresh","cellLocate","cellData","cellHist"].forEach(id=>{
+  const el=$(id); if(!el)return;
+  el.addEventListener("click",()=>{
+    const cmd={cellRefresh:"cell",cellLocate:"locate",cellData:"data",cellHist:"hist"}[id];
+    publishCmd(cmd,null,el);
+    toast(id==="cellLocate"?"Locating via cell…":"Requested — watch below");
+  });
+});
+(function(){ const t=$("cellToggle"),c=$("cellCard");
+  if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
+
 document.querySelectorAll(".cmd").forEach(btn=>{
   btn.addEventListener("click",(ev)=>{
     const cmd=btn.dataset.cmd;
