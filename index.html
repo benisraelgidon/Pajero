@@ -684,7 +684,7 @@ function updateMap(lat,lon){ if(!map||lat==null)return; const p=[lat,lon];
   } }
 
 /* ---------- cell info + geolocation ---------- */
-let cellMarker=null, cellCircle=null;
+let cellMarker=null, cellCircle=null, cellLine=null;
 function q(dbm){ return dbm>=-80?["excellent","#34c759"]:dbm>=-90?["good","#8bc34a"]
   :dbm>=-100?["fair","#ffcc00"]:dbm>=-110?["poor","#ff9500"]:["cell edge","#ff3b30"]; }
 function bar(pct,color){ pct=Math.max(0,Math.min(100,pct));
@@ -694,10 +694,22 @@ function renderCell(c){
   // location payload?
   if(c.kind==="celloc"){
     const el=$("cellLoc"); el.style.display="block";
-    el.innerHTML='<b>Cell location</b> (coarse, ~'+Math.round(c.range||0)+' m radius)<br>'+
+    let hdg="";
+    if(typeof c.clat==="number"){
+      const R=6371000,tR=Math.PI/180;
+      const y=Math.sin((c.lon-c.clon)*tR)*Math.cos(c.lat*tR);
+      const x=Math.cos(c.clat*tR)*Math.sin(c.lat*tR)-Math.sin(c.clat*tR)*Math.cos(c.lat*tR)*Math.cos((c.lon-c.clon)*tR);
+      let brg=Math.atan2(y,x)/tR; if(brg<0)brg+=360;
+      const dlat=(c.lat-c.clat)*tR,dlon=(c.lon-c.clon)*tR;
+      const a=Math.sin(dlat/2)**2+Math.cos(c.clat*tR)*Math.cos(c.lat*tR)*Math.sin(dlon/2)**2;
+      const d=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+      const dirs=["N","NE","E","SE","S","SW","W","NW"];
+      hdg='<br>Tower is <b>'+Math.round(d)+' m to your '+dirs[Math.round(brg/45)%8]+'</b> (bearing '+Math.round(brg)+'°)';
+    }
+    el.innerHTML='<b>Cell tower location</b> (coarse, coverage ~'+Math.round(c.range||0)+' m)<br>'+
       c.lat.toFixed(5)+', '+c.lon.toFixed(5)+
-      ' &nbsp;<a href="https://maps.google.com/?q='+c.lat+','+c.lon+'" target="_blank">open ↗</a>';
-    dropCellPin(c.lat,c.lon,c.range||1000);
+      ' &nbsp;<a href="https://maps.google.com/?q='+c.lat+','+c.lon+'" target="_blank">open ↗</a>'+hdg;
+    dropCellPin(c.lat,c.lon,c.range||1000,c.clat,c.clon);
     toast("Cell location received");
     return;
   }
@@ -725,7 +737,7 @@ function renderCell(c){
   $("cellGrid").innerHTML=rows.join("");
 }
 
-function dropCellPin(lat,lon,range){
+function dropCellPin(lat,lon,range,clat,clon){
   if(!map)return; const p=[lat,lon];
   if(cellCircle){ map.removeLayer(cellCircle); }
   cellCircle=L.circle(p,{radius:range,color:"#5ac8fa",weight:1,fillColor:"#5ac8fa",fillOpacity:.12}).addTo(map);
@@ -733,7 +745,14 @@ function dropCellPin(lat,lon,range){
     const ic=L.divIcon({className:"",html:'<div style="width:14px;height:14px;border-radius:50%;background:#5ac8fa;border:2px solid #141418;box-shadow:0 0 10px rgba(90,200,250,.9)"></div>',iconSize:[14,14],iconAnchor:[7,7]});
     cellMarker=L.marker(p,{icon:ic}).addTo(map);
   } else cellMarker.setLatLng(p);
-  map.setView(p, 13);
+  // direction line from the car's GPS fix to the tower
+  if(cellLine){ map.removeLayer(cellLine); cellLine=null; }
+  if(typeof clat==="number" && typeof clon==="number"){
+    cellLine=L.polyline([[clat,clon],[lat,lon]],{color:"#ffcc00",weight:2,dashArray:"6 5"}).addTo(map);
+    map.fitBounds(cellLine.getBounds().pad(0.4));
+  } else {
+    map.setView(p, 13);
+  }
 }
 
 /* ---------- commands ---------- */
