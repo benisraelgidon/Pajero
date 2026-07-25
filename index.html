@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PAJERO">
+<meta name="theme-color" content="#09090B">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<title>Pajero Node</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Saira+Condensed:ital,wght@0,700;0,800;1,700;1,800&family=Inter:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --bg:#09090B; --panel:#141418; --panel2:#1A1A20; --line:#27272E;
+    --text:#F4F4F6; --muted:#87878F; --dim:#54545C;
+    --red:#D50F2C; --gold:#E8B84B; --ice:#6FA8FF; --silver:#C9CDD2;
+    --ok:#4FD08A; --warn:#E8B84B; --bad:#D50F2C; --orange:#F5871A;
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(900px 380px at 50% -140px,#17171c 0%,transparent 72%),var(--bg);
+    color:var(--text);font-family:"Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+    min-height:100vh;display:flex;justify-content:center;letter-spacing:-0.01em;
+    padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+  .num{font-variant-numeric:tabular-nums}
+  .cond{font-family:"Saira Condensed",sans-serif}
+  .app{width:100%;max-width:448px;padding:22px 18px 46px}
+
+  /* header */
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .emblem{display:flex;align-items:center;gap:10px}
+  .badge{width:44px;height:44px;flex:none}
+  .rally{font-family:"Saira Condensed";font-style:italic;font-weight:800;font-size:13px;letter-spacing:.18em;color:var(--silver);line-height:1}
+  .rally b{color:var(--red)}
+  .rally span{display:block;font-size:9px;letter-spacing:.32em;color:var(--muted);margin-top:2px}
+  .state{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .sdot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 12px var(--ok)}
+  .wordmark{font-family:"Archivo Black",sans-serif;font-weight:400;font-size:44px;line-height:.9;
+    letter-spacing:.005em;margin:10px 0 2px;
+    background:linear-gradient(180deg,#ffffff 0%,#dfe2e6 52%,#a7abb1 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .wordmark small{font-family:"Saira Condensed";font-style:italic;font-size:15px;-webkit-text-fill-color:var(--red);
+    color:var(--red);margin-left:10px;letter-spacing:.1em;vertical-align:super;font-weight:800}
+  .ralliart{height:26px;width:auto;display:block}
+  .rule{height:3px;margin:14px 0 20px;border-radius:2px;
+    background:linear-gradient(90deg,var(--red) 0,var(--orange) 24%,var(--line) 30%,var(--line) 100%)}
+
+  /* banner */
+  .banner{margin:0 0 14px;padding:11px 13px;border-radius:12px;font-size:13.5px;font-weight:500;
+    display:flex;gap:9px;align-items:center;border:1px solid}
+  .banner.demo{background:rgba(232,184,75,.09);border-color:rgba(232,184,75,.4);color:var(--gold)}
+  .banner.live{background:rgba(79,208,138,.09);border-color:rgba(79,208,138,.4);color:var(--ok)}
+  .banner.err{background:rgba(213,15,44,.10);border-color:rgba(213,15,44,.45);color:var(--red)}
+
+  /* status cluster */
+  .cluster{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:26px}
+  .gauge{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:13px 14px;position:relative;overflow:hidden}
+  .gauge .k{font-family:"Saira Condensed";font-weight:600;font-size:12px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  .gauge .v{font-size:22px;font-weight:300;margin-top:5px;line-height:1}
+  .gauge::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--dim);opacity:.5}
+  .gauge.on::after{background:var(--ok)} .gauge.warn::after{background:var(--gold)} .gauge.off::after{background:var(--red)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--dim);margin-right:6px;vertical-align:middle}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok);animation:pulse 2.4s infinite}
+  .dot.off{background:var(--red)}
+  @keyframes pulse{50%{opacity:.35}}
+  @keyframes ping{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+
+  /* section label */
+  .sec{font-family:"Saira Condensed";font-weight:700;font-style:italic;font-size:15px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--silver);margin:0 2px 13px;display:flex;align-items:center;gap:10px}
+  .sec::before{content:"";width:9px;height:9px;background:var(--red);transform:rotate(45deg);border-radius:1px;flex:none}
+  .sec .r{margin-left:auto;font-family:"Inter";font-style:normal;font-weight:400;font-size:12px;letter-spacing:0;color:var(--dim);text-transform:none}
+  .sec .r.tap{color:var(--ice);cursor:pointer}
+
+  /* cards */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;margin-bottom:22px;overflow:hidden}
+  .card>.hd{display:none}         /* section titles handled by .sec now */
+  .body{padding:16px}
+  .collapsed .body{display:none}
+
+  /* controls */
+  .cmds{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .cmd{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:16px;
+    padding:17px 15px;font-family:"Saira Condensed";font-weight:700;font-size:19px;letter-spacing:.05em;
+    text-transform:uppercase;cursor:pointer;text-align:left;transition:.14s;display:flex;flex-direction:column;
+    gap:4px;min-height:74px;justify-content:center;-webkit-tap-highlight-color:transparent}
+  .cmd .ic{display:none}
+  .cmd small{font-family:"Inter";font-size:11.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted)}
+  .cmd{position:relative;overflow:hidden}
+  .cmd:active{transform:scale(.96);filter:brightness(1.35)}
+  .cmd.pending{opacity:.55}
+  .cmd.ok{border-color:var(--ok)!important;box-shadow:0 0 0 2px rgba(79,208,138,.35) inset}
+  .cmd .rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.30);
+    transform:scale(0);animation:rip .55s ease-out forwards;pointer-events:none}
+  @keyframes rip{to{transform:scale(2.6);opacity:0}}
+  .cmd.unlock{border-color:rgba(213,15,44,.5)} .cmd.unlock:active{background:rgba(213,15,44,.12)} .cmd.unlock small{color:var(--red)}
+  .cmd.lock small{color:var(--gold)}
+  .cmd.gate small{color:var(--ice)}
+  .cmd.bb{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center}
+  .cmd.bb .l{display:flex;flex-direction:column;gap:3px}
+  .cmd.bb.armed{background:rgba(213,15,44,.10);border-color:rgba(213,15,44,.5)}
+  .pill{font-family:"Inter";font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;
+    padding:6px 13px;border-radius:20px;background:var(--line);color:var(--muted)}
+  .cmd.bb.armed .pill{background:var(--red);color:#fff}
+
+  /* telemetry */
+  .tele{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px}
+  .cell .lab{font-family:"Saira Condensed";font-weight:600;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .cell .num,.cell>div:last-child{font-size:23px;font-weight:300;margin-top:4px;letter-spacing:-0.01em}
+  .cell .num small{color:var(--muted);font-size:12px;font-weight:400}
+
+  .cellgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .cellrow{background:#0b0b0d;border:1px solid var(--line);border-radius:11px;padding:9px 11px}
+  .cellrow .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .cellrow .v{font-size:16px;color:var(--text);margin-top:2px;font-variant-numeric:tabular-nums}
+  .cellrow .x{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+  .cellrow.full{grid-column:1/3}
+  .cellempty{color:var(--muted);font-size:13px;padding:6px 2px}
+  .cellloc{margin-top:13px;padding:11px;background:#0b0b0d;border:1px solid var(--line);border-radius:11px}
+  .cellloc a{color:var(--accent,#5ac8fa);text-decoration:none}
+  .bar{height:5px;border-radius:3px;background:#1a1a1e;margin-top:6px;overflow:hidden}
+  .bar>i{display:block;height:100%}
+  /* map */
+  #map{height:210px;background:#050506;position:relative}
+  #map .offline{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;color:var(--muted);font-size:13px;gap:6px;z-index:5;padding:20px}
+  #map .offline .co{font-size:20px;color:var(--text)}
+  .leaflet-container{background:#050506}
+  .map-wrap{border-radius:18px;overflow:hidden;border:1px solid var(--line);margin-bottom:22px;position:relative}
+  .mapcoord{position:absolute;left:14px;bottom:12px;z-index:6;font-size:13px;color:var(--silver);
+    background:rgba(0,0,0,.55);padding:5px 10px;border-radius:6px;backdrop-filter:blur(4px)}
+
+  /* off-grid unlock */
+  .lora{background:linear-gradient(180deg,rgba(213,15,44,.06),transparent 42%),var(--panel);text-align:center}
+  .lora .kv{font-family:"Saira Condensed";font-weight:700;font-style:italic;font-size:13px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--silver);margin-bottom:14px}
+  .lora .kv span{color:var(--gold)}
+  #loraCode{font-size:26px;font-weight:300;letter-spacing:.02em}
+  .lora .glow{height:2px;width:74px;margin:12px auto 14px;border-radius:2px;
+    background:linear-gradient(90deg,transparent,var(--ice),transparent);box-shadow:0 0 12px rgba(111,168,255,.5)}
+  .lora .sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+
+  /* field log */
+  .logadd{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .attach{position:relative;overflow:hidden;border:1px dashed var(--line);border-radius:13px;background:var(--panel2);
+    color:var(--text);font-family:"Saira Condensed";font-weight:700;font-size:14px;letter-spacing:.04em;text-transform:uppercase;
+    padding:14px;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+  .attach input{position:absolute;inset:0;opacity:0;font-size:0}
+  .attach.set{border-style:solid;border-color:var(--ok);color:var(--ok)}
+  textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:13px;color:var(--text);
+    font-family:"Inter";font-size:15px;padding:12px;resize:none;margin-bottom:10px}
+  textarea:focus{outline:none;border-color:var(--ice)}
+  .save{width:100%;background:var(--red);color:#fff;border:none;border-radius:13px;padding:14px;
+    font-family:"Saira Condensed";font-weight:800;font-style:italic;font-size:15px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+  .save:active{opacity:.88} .save:disabled{background:var(--line);color:var(--dim);cursor:default}
+  .entries{margin-top:6px;display:flex;flex-direction:column;gap:10px}
+  .entry{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2)}
+  .entry .meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px}
+  .entry .meta .co{color:var(--gold)}
+  .entry .txt{font-size:14px;line-height:1.4}
+  .entry .media{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
+  .entry img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+  .entry audio{height:34px}
+  .empty{color:var(--dim);font-size:13px;text-align:center;padding:16px 0}
+
+  /* buttons shared */
+  .copy,.connect{width:100%;border:none;border-radius:13px;padding:14px;cursor:pointer;
+    font-family:"Saira Condensed";font-weight:800;font-style:italic;font-size:15px;letter-spacing:.1em;text-transform:uppercase}
+  .copy{background:var(--red);color:#fff} .copy:active{opacity:.88}
+  .connect{background:var(--ice);color:#0B1220;margin-top:4px}
+
+  /* connection panel */
+  .field{margin-bottom:10px}
+  .field label{display:block;font-family:"Saira Condensed";font-weight:600;font-size:11px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .field input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;color:var(--text);
+    font-family:"Inter";font-size:13px;padding:11px}
+  .field input:focus{outline:none;border-color:var(--ice)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  .foot{text-align:center;color:var(--dim);font-size:11px;margin-top:24px;
+    font-family:"Saira Condensed";font-weight:600;letter-spacing:.2em;text-transform:uppercase}
+
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0) + 22px);transform:translateX(-50%) translateY(20px);
+    background:var(--panel);border:1px solid var(--line);color:var(--text);padding:11px 18px;border-radius:12px;
+    font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:.22s;z-index:50;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast .bar{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:8px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="top">
+    <svg class="ralliart" viewBox="0 0 214 40" role="img" aria-label="Ralliart">
+      <g font-family="'Saira Condensed',sans-serif" font-weight="800" font-style="italic" font-size="33" fill="#F4F4F6">
+        <text x="0" y="31">RALLI</text>
+        <text x="150" y="31">ART</text>
+      </g>
+      <g>
+        <polygon points="92,6 96,6 90,34 86,34" fill="#C8001F"/>
+        <polygon points="99,6 103,6 97,34 93,34" fill="#E4032E"/>
+        <polygon points="106,6 110,6 104,34 100,34" fill="#EE2A1C"/>
+        <polygon points="113,6 117,6 111,34 107,34" fill="#F2601B"/>
+        <polygon points="120,6 124,6 118,34 114,34" fill="#F5871A"/>
+        <polygon points="127,6 131,6 125,34 121,34" fill="#F7A11C"/>
+      </g>
+    </svg>
+    <div class="state"><span class="sdot"></span> Live</div>
+  </div>
+  <div class="wordmark">PAJERO<small>NODE</small></div>
+  <div class="rule"></div>
+
+  <div class="banner demo" id="banner"><span>◆</span><span id="bannerTxt">Not connected — running demo.</span></div>
+
+  <div class="cluster">
+    <div class="gauge" id="gLink"><div class="k">Link</div><div class="v"><span class="dot" id="dLink"></span><span id="vLink">—</span></div></div>
+    <div class="gauge" id="gGps"><div class="k">GPS</div><div class="v" id="vGps">—</div></div>
+    <div class="gauge" id="gPwr"><div class="k">Speed</div><div class="v" id="vPwr">—</div></div>
+  </div>
+
+  <!-- CONTROLS (top) -->
+  <div class="sec">Controls <span class="r">tap to send</span></div>
+  <div class="cmds" style="margin-bottom:22px">
+    <button class="cmd unlock" data-cmd="unlock">Unlock<small>keyfob pulse</small></button>
+    <button class="cmd lock" data-cmd="lock">Lock<small>keyfob pulse</small></button>
+    <button class="cmd gate" data-cmd="gate">Gate<small>remote press</small></button>
+    <button class="cmd bb" id="bbBtn" data-cmd="blackbox">
+      <span class="l"><span>Black Box</span><small id="bbSub">10-second press</small></span>
+      <span class="pill" id="bbPill">PRESS</span>
+    </button>
+  </div>
+
+  <!-- MAP (middle) -->
+  <div class="sec">Position
+    <span class="r tap" id="followBtn" style="margin-left:auto">◎ follow</span>
+    <span class="r num" id="mapCoord" style="margin-left:10px">—</span></div>
+  <div class="map-wrap">
+    <div id="map"><div class="offline" id="mapOffline"><div class="co num">—</div><div>No map tiles offline.<br>Node position shown by coordinates above.</div></div></div>
+  </div>
+
+  <!-- INFO (bottom) -->
+  <div class="sec">Telemetry <span class="r num" id="lastSeen">last —</span></div>
+  <div class="card"><div class="body">
+    <div class="tele">
+      <div class="cell"><div class="lab">Latitude</div><div class="num" id="tLat">—</div></div>
+      <div class="cell"><div class="lab">Longitude</div><div class="num" id="tLon">—</div></div>
+      <div class="cell"><div class="lab">Fix</div><div class="num" id="tFix">—</div></div>
+      <div class="cell"><div class="lab">Satellites</div><div class="num" id="tSats">—</div></div>
+      <div class="cell"><div class="lab">Firmware</div><div class="num" id="tFw">—</div></div>
+      <div class="cell"><div class="lab">Node battery</div><div class="num" id="tBat">—</div></div>
+      <div class="cell"><div class="lab">LTE signal</div><div class="num" id="tRf">—</div></div>
+      <div class="cell"><div class="lab">Operator</div><div class="num" id="tOp">—</div></div>
+      <div class="cell"><div class="lab">Network</div><div class="num" id="tNet">—</div></div>
+    </div>
+  </div></div>
+
+  <div class="sec">Geofence &amp; alerts <span class="r" id="geoState">—</span></div>
+  <div class="card"><div class="body">
+    <div class="tele" style="margin-bottom:14px">
+      <div class="cell"><div class="lab">Home point</div><div class="num" id="gHome">—</div></div>
+      <div class="cell"><div class="lab">Auto gate</div><div class="num" id="gAuto">—</div></div>
+    </div>
+    <div class="field"><label>Fence radius (metres)</label><input id="gRad" type="number" value="120" inputmode="numeric"></div>
+    <div class="cmds">
+      <button class="cmd gate" data-geo="sethome">Set home<small>uses car's GPS now</small></button>
+      <button class="cmd lock" data-geo="gatetoggle">Auto gate<small>on / off</small></button>
+      <button class="cmd gate" data-geo="tgtest">Test alert<small>sends to Telegram</small></button>
+      <button class="cmd unlock" data-geo="clearhome">Clear fence<small>remove home point</small></button>
+    </div>
+  </div></div>
+
+  <div class="sec">Off-grid unlock <span class="r num" id="loraLeft">--s</span></div>
+  <div class="card lora"><div class="body">
+    <div class="kv"><span>LoRa</span> · works only when the car has no 4G</div>
+    <div class="num" id="loraCode">PJRO UNLOCK ——————</div>
+    <div class="glow"></div>
+    <div class="sub">Paste into Meshtastic on your private channel</div>
+    <button class="copy" id="loraCopy">Copy code</button>
+    <button class="connect" id="openMesh" style="margin-top:9px">Open Meshtastic map</button>
+    <div class="sub" style="margin:10px 0 0">Off-grid, the car's position shows as a node in Meshtastic.</div>
+  </div></div>
+
+  <div class="sec">Field log <span class="r" id="logCount">0 entries</span></div>
+  <div class="card"><div class="body">
+    <div class="logadd">
+      <label class="attach" id="phLbl"><span id="phTxt">▣ Photo</span><input type="file" accept="image/*" capture="environment" id="phIn"></label>
+      <label class="attach" id="vcLbl"><span id="vcTxt">◉ Voice</span><input type="file" accept="audio/*" capture id="vcIn"></label>
+    </div>
+    <textarea id="note" rows="2" placeholder="Note — stamped with the node's current coordinates…"></textarea>
+    <button class="save" id="saveBtn" disabled>Log entry</button>
+    <div class="entries" id="entries"><div class="empty">No entries yet. Photos and voice stay on this phone, pinned to the node's position.</div></div>
+  </div></div>
+
+  <div class="sec">Cell &amp; signal <span class="r tap" id="cellToggle">show ▾</span></div>
+  <div class="card collapsed" id="cellCard"><div class="body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="connect" id="cellRefresh">Read cell</button>
+      <button class="connect" id="cellLocate">Locate via cell</button>
+      <button class="connect" id="cellData">Data used</button>
+      <button class="connect" id="cellHist">24h history</button>
+    </div>
+    <div id="cellGrid" class="cellgrid"><div class="cellempty">Tap “Read cell” to query the modem.</div></div>
+    <div id="cellLoc" class="cellloc" style="display:none"></div>
+  </div></div>
+
+  <div class="sec">Node log <span class="r tap" id="logToggle">show ▾</span></div>
+  <div class="card collapsed" id="logCard"><div class="body">
+    <div id="nodeLog" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;
+      line-height:1.65;color:var(--muted);max-height:210px;overflow-y:auto;word-break:break-word">
+      Waiting for the node…</div>
+    <button class="connect" id="logClear" style="margin-top:12px">Clear</button>
+  </div></div>
+
+  <div class="sec">Firmware update <span class="r tap" id="otaToggle">show ▾</span></div>
+  <div class="card collapsed" id="otaCard"><div class="body">
+    <div class="field"><label>Firmware .bin URL</label>
+      <input id="otaUrl" placeholder="https://github.com/.../pajero_node.bin"
+             autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="field"><label>SHA-256 of that file (64 hex chars)</label>
+      <input id="otaSha" placeholder="a3f1…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <button class="save" id="otaGo">Send update</button>
+    <div class="sub" style="margin-top:12px">The node checks the hash before
+      installing. A wrong hash is discarded and the current firmware keeps
+      running. Watch the Node log for progress.</div>
+  </div></div>
+
+  <div class="sec">Connection <span class="r tap" id="connToggle">setup ▾</span></div>
+  <div class="card collapsed" id="connCard"><div class="body">
+    <div class="field"><label>Broker (WSS URL)</label><input id="cBroker" placeholder="wss://xxxx.hivemq.cloud:8884/mqtt" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="row2">
+      <div class="field"><label>Username</label><input id="cUser" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="field"><label>Password</label><input id="cPass" type="password"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Device ID</label><input id="cId" value="pajero1" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="field"><label>Command secret</label><input id="cSecret" type="password"></div>
+    </div>
+    <button class="connect" id="connectBtn">Connect</button>
+  </div></div>
+
+  <div class="foot">Built for where the road ends</div>
+  <div id="dbg" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a8f98;
+    background:#111114;border:1px solid #27272e;border-radius:10px;padding:10px 12px;margin-top:14px;
+    line-height:1.6;word-break:break-all">diag: starting…</div>
+  <div id="toast"><span class="bar"></span><span id="toastTxt"></span></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+"use strict";
+/* compact SHA-256 (public-domain style) -> lowercase hex; matches the node's mbedtls output */
+function sha256hex(ascii){
+  function rotr(n,x){return (x>>>n)|(x<<(32-n));}
+  var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bytes=[]; for(var i=0;i<ascii.length;i++) bytes.push(ascii.charCodeAt(i)&0xff);
+  var l=bytes.length, bl=l*8; bytes.push(0x80);
+  while(bytes.length%64!=56) bytes.push(0);
+  for(var i=7;i>=0;i--) bytes.push((bl/Math.pow(2,8*i))&0xff);
+  for(var j=0;j<bytes.length;j+=64){
+    var w=new Array(64);
+    for(var i=0;i<16;i++) w[i]=(bytes[j+i*4]<<24)|(bytes[j+i*4+1]<<16)|(bytes[j+i*4+2]<<8)|(bytes[j+i*4+3]);
+    for(var i=16;i<64;i++){
+      var s0=rotr(7,w[i-15])^rotr(18,w[i-15])^(w[i-15]>>>3);
+      var s1=rotr(17,w[i-2])^rotr(19,w[i-2])^(w[i-2]>>>10);
+      w[i]=(w[i-16]+s0+w[i-7]+s1)|0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(var i=0;i<64;i++){
+      var S1=rotr(6,e)^rotr(11,e)^rotr(25,e);
+      var ch=(e&f)^((~e)&g);
+      var t1=(h+S1+ch+K[i]+w[i])|0;
+      var S0=rotr(2,a)^rotr(13,a)^rotr(22,a);
+      var mj=(a&b)^(a&c)^(b&c);
+      var t2=(S0+mj)|0;
+      h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;
+    }
+    H[0]=(H[0]+a)|0;H[1]=(H[1]+b)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;
+    H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+h)|0;
+  }
+  var out=""; for(var i=0;i<8;i++){ var v=(H[i]>>>0).toString(16); out+="00000000".slice(v.length)+v; }
+  return out;
+}
+function meshToken(secret,step){ return sha256hex(secret+":"+step).slice(0,6); }
+
+/* ================================================================
+   Pajero Node — remote control over the internet via MQTT/TLS.
+   Fill CONFIG (or the in-app Connection panel) with your broker.
+   Until connected it runs a DEMO node so the UI is fully alive.
+
+   Node <-> topics:
+     publishes  pajero/<id>/status   {lat,lon,fix,sats,spd,csq,op,net,blackbox,ts}
+     subscribes pajero/<id>/cmd      {cmd:"unlock"|"lock"|"blackbox", state?, secret}
+
+   Node = LILYGO SIM7670G board: LTE Cat-1 + GNSS from the modem.
+   Node connects to the broker on mqtts://:8883 (native MQTT/TLS).
+   This app connects on wss://:8884/mqtt (browsers need WebSockets).
+   Same broker, same topics, different transport.
+   ================================================================ */
+const CONFIG = {
+  broker:   "wss://7e8b557fbc1e49c6b158e020ea18b265.s1.eu.hivemq.cloud:8884/mqtt",
+  username: "pajero2",
+  password: "pajeropassword123",   // change to match HiveMQ once you harden it
+  deviceId: "pajero1",             // must match the firmware
+  secret:   "8yQgTSIEpMzWISaVBQ6uUmQhmXVY"  // must match the firmware SECRET
+};
+const STALE_MS = 15000;   // no status for this long => link considered down
+
+const $ = id => document.getElementById(id);
+let client=null, demo=true, connected=false, state=null, lastMsg=0;
+let _msgs=0, _sub="—", _err="—", _lastTopic="—";
+function diag(){ var e=document.getElementById("dbg"); if(!e)return;
+  e.textContent="conn:"+(connected?"yes":"no")+"  sub:"+_sub+"  msgs:"+_msgs
+    +"  last:"+_lastTopic+"  err:"+_err; }
+setInterval(diag,1000);
+let map=null, marker=null, tilesOK=false, bbBusy=false, bbLeft=0, follow=true;
+
+/* ---------- toast ---------- */
+let tHide;
+function toast(msg){ $("toastTxt").textContent=msg; const t=$("toast");
+  t.classList.add("show"); clearTimeout(tHide); tHide=setTimeout(()=>t.classList.remove("show"),1800); }
+
+/* ---------- prefill connection fields from CONFIG ---------- */
+$("cBroker").value=CONFIG.broker; $("cUser").value=CONFIG.username; $("cPass").value=CONFIG.password;
+$("cId").value=CONFIG.deviceId||"pajero1"; $("cSecret").value=CONFIG.secret;
+$("connToggle").addEventListener("click",()=>{ $("connCard").classList.toggle("collapsed");
+  $("connToggle").textContent = $("connCard").classList.contains("collapsed") ? "setup ▾" : "hide ▴"; });
+$("connectBtn").addEventListener("click",()=>{
+  CONFIG.broker=$("cBroker").value.trim(); CONFIG.username=$("cUser").value.trim();
+  CONFIG.password=$("cPass").value; CONFIG.deviceId=$("cId").value.trim()||"pajero1"; CONFIG.secret=$("cSecret").value;
+  connect();
+});
+
+/* ---------- MQTT ---------- */
+function topics(){ const b="pajero/"+CONFIG.deviceId; return {status:b+"/status", cmd:b+"/cmd"}; }
+function connect(){
+  if(!CONFIG.broker){ toast("Enter a broker URL first"); return; }
+  if(client){ try{client.end(true);}catch(e){} client=null; }
+  setBanner("demo","Connecting to broker…");
+  const cid="pajeroapp-"+Math.random().toString(16).slice(2,8);
+  try{
+    client=mqtt.connect(CONFIG.broker,{username:CONFIG.username,password:CONFIG.password,
+      clientId:cid,reconnectPeriod:4000,connectTimeout:8000,clean:true});
+  }catch(e){ setBanner("err","Bad broker URL."); return; }
+
+  client.on("connect",()=>{ connected=true; demo=false;
+    client.subscribe("pajero/#",{qos:0},(err,granted)=>{
+      // Only qos 128 is a real SUBACK refusal. A missing/empty granted array is
+      // NOT a denial -- mqtt.js omits it on auto-resubscribe after a reconnect,
+      // and treating that as denied raised a false alarm while data was flowing.
+      if(err){ _sub="ERR"; setBanner("err","Connected, but couldn't subscribe."); }
+      else if(granted && granted.length && granted[0].qos===128){
+        _sub="DENIED"; setBanner("err","Broker refused the subscription. Set the login's topic permission to # in HiveMQ.");
+      } else if(granted && granted.length){
+        _sub="qos"+granted[0].qos; setBanner("live","Connected — waiting for the node to report…");
+      } else {
+        _sub="sent";               // no SUBACK detail; arriving messages will confirm
+        setBanner("live","Connected — waiting for the node to report…");
+      }
+      diag();
+    });
+    toast("Broker connected");
+  });
+  client.on("message",(t,payload)=>{
+    _msgs++; _lastTopic=t;
+    _sub="OK";                      // messages arriving proves the subscription is live
+    diag();
+    if(t.endsWith("/log")){
+      const line=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
+      pushLog(line);
+      const m=line.match(/\[ack\]\s+(\w+)/);
+      if(m) confirmCmd(m[1]==="gateauto"?"gateauto":m[1]);
+      return;
+    }
+    if(t.endsWith("/cell")){
+      const raw=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
+      try{ renderCell(JSON.parse(raw)); }catch(e){ /* ignore malformed */ }
+      return;
+    }
+    if(!t.endsWith("/status")) return;
+    let txt;
+    try{ txt=(typeof payload==="string")?payload:new TextDecoder().decode(payload); }
+    catch(e){ txt=String(payload); }
+    try{ const s=JSON.parse(txt); lastMsg=Date.now(); demo=false; render(s); }
+    catch(e){ _err="parse:"+txt.slice(0,24); diag(); }
+  });
+  client.on("error",e=>{ _err=(e&&e.message)?e.message.slice(0,40):"error"; diag(); setBanner("err","Broker error — check URL / login."); });
+  client.on("close",()=>{ if(connected){ connected=false; } });
+  client.on("offline",()=>{ setBanner("err","Broker offline — retrying…"); });
+}
+
+function ripple(el,ev){
+  if(!el) return;
+  const r=document.createElement("span"); r.className="rip";
+  const b=el.getBoundingClientRect(), d=Math.max(b.width,b.height);
+  r.style.width=r.style.height=d+"px";
+  r.style.left=((ev&&ev.clientX?ev.clientX-b.left:b.width/2)-d/2)+"px";
+  r.style.top =((ev&&ev.clientY?ev.clientY-b.top :b.height/2)-d/2)+"px";
+  el.appendChild(r); setTimeout(()=>r.remove(),600);
+  if(navigator.vibrate) navigator.vibrate(12);
+}
+const pending={};
+function markPending(cmd,el){
+  if(!el) return; pending[cmd]=el; el.classList.add("pending");
+  setTimeout(()=>{ if(pending[cmd]===el){ el.classList.remove("pending"); delete pending[cmd];
+    toast(label(cmd)+" — no reply from node"); } },8000);
+}
+function confirmCmd(cmd){
+  const el=pending[cmd]; if(!el) return;
+  el.classList.remove("pending"); el.classList.add("ok");
+  setTimeout(()=>el.classList.remove("ok"),1200);
+  delete pending[cmd];
+}
+
+function publishCmd(cmd,extra,el){
+  const payload=JSON.stringify(Object.assign({cmd,secret:CONFIG.secret,ts:Date.now()},extra||{}));
+  if(demo || !client || !connected){
+    // demo behaviour so the UI still responds
+    if(cmd==="blackbox") demoPulse();
+    toast(label(cmd)+" (demo)"); return;
+  }
+  client.publish(topics().cmd,payload,{qos:1},err=>{
+    if(err){ toast(label(cmd)+" failed"); if(el)el.classList.remove("pending"); }
+    else { toast(label(cmd)+" sent"); markPending(cmd,el); }
+  });
+}
+$("followBtn").addEventListener("click",()=>setFollow(!follow));
+
+$("otaToggle").addEventListener("click",()=>{
+  const open=$("otaCard").classList.toggle("collapsed");
+  $("otaToggle").textContent=open?"show ▾":"hide ▴";
+});
+$("otaGo").addEventListener("click",(ev)=>{
+  const u=$("otaUrl").value.trim(), h=$("otaSha").value.trim().toLowerCase();
+  if(!/^https?:\/\//.test(u)){ toast("Enter a http(s) URL"); return; }
+  if(!/^[0-9a-f]{64}$/.test(h)){ toast("SHA-256 must be 64 hex characters"); return; }
+  ripple($("otaGo"),ev);
+  publishCmd("ota",{url:u,sha256:h});
+  toast("Update sent — watch the Node log");
+});
+
+document.querySelectorAll("[data-geo]").forEach(b=>{
+  b.addEventListener("click",(ev)=>{
+    ripple(b,ev);
+    const a=b.dataset.geo;
+    const r=parseInt($("gRad").value,10)||120;
+    if(a==="sethome")        publishCmd("sethome",{radius:r},b);
+    else if(a==="clearhome") publishCmd("clearhome",null,b);
+    else if(a==="tgtest")    publishCmd("tgtest",null,b);
+    else if(a==="gatetoggle")publishCmd("gateauto",{on:!(state&&state.gauto)},b);
+  });
+});
+
+function label(c){ return c==="unlock"?"Unlock":c==="lock"?"Lock":c==="gate"?"Gate":
+  c==="blackbox"?"Black Box":c==="sethome"?"Set home":c==="clearhome"?"Clear fence":
+  c==="tgtest"?"Test alert":c==="gateauto"?"Auto gate":c; }
+
+/* ---------- link freshness watchdog ---------- */
+setInterval(()=>{
+  if(demo){ render(demoStatus()); return; }
+  const age=Date.now()-lastMsg;
+  if(connected && lastMsg>0 && age>STALE_MS){ setBanner("err","Connected, but node silent ("+Math.round(age/1000)+"s)."); markLinkDown(); }
+},4000);
+function markLinkDown(){ $("dLink").className="dot off"; $("vLink").textContent="SILENT"; setGauge("gLink","off"); }
+
+/* ---------- demo node ---------- */
+let dLat=31.7683,dLon=35.2137,dBat=87,dSeq=0;
+function demoStatus(){ dSeq++; dLat+=(Math.random()-.5)*.0004; dLon+=(Math.random()-.5)*.0004;
+  if(dSeq%15===0)dBat=Math.max(72,dBat-1);
+  return{lat:+dLat.toFixed(5),lon:+dLon.toFixed(5),fix:"3D",sats:7+Math.floor(Math.random()*3),
+    bat:dBat,csq:16+Math.floor(Math.random()*6),op:"Partner",net:"LTE",bb:bbBusy,bbLeft:bbLeft,ts:Date.now()}; }
+
+// demo-only: mimic the node's 10s press so the countdown is testable
+function demoPulse(){
+  bbBusy=true; bbLeft=10000;
+  const iv=setInterval(()=>{
+    bbLeft-=250;
+    if(bbLeft<=0){ bbBusy=false; bbLeft=0; clearInterval(iv); }
+    renderBB();
+  },250);
+}
+
+/* ---------- render ---------- */
+function setBanner(cls,msg){ const b=$("banner"); b.className="banner "+cls; $("bannerTxt").textContent=msg; }
+function fmtAge(ts){ if(!ts||ts<1700000000000)return"live"; const ms=Date.now()-ts; if(ms<2500)return"live";
+  const s=Math.round(ms/1000); return s<60? s+"s ago":Math.round(s/60)+"m ago"; }
+// modem reports CSQ 0..31 (99 = unknown); convert to dBm the standard way
+function csqText(csq){
+  if(csq==null||csq===99) return "—";
+  const dbm=-113+2*csq;
+  const q = csq>=20?"good":csq>=12?"ok":"weak";
+  return dbm+' <small>dBm · '+q+'</small>';
+}
+
+function render(s){
+  state=s; bbBusy=!!s.bb; bbLeft=s.bbLeft||0;
+  if($("gHome")){
+    $("gHome").textContent = s.home ? "set" : "not set";
+    $("gAuto").textContent = s.gauto ? "ON" : "off";
+    $("geoState").textContent = !s.home ? "no fence"
+      : (s.inside ? "at home" : "away") + (s.drive ? " · driving" : "");
+  }
+  setBanner(demo?"demo":"live", demo?"Not connected — running demo.":"Node connected — live data.");
+
+  const dl=$("dLink"); dl.className="dot on"; $("vLink").textContent=demo?"DEMO":"UP";
+  setGauge("gLink",demo?"warn":"on");
+  const lock=s.fix==="3D"||s.fix==="2D";
+  $("vGps").textContent=lock?s.fix:"NO FIX"; setGauge("gGps",lock?"on":"off");
+  { const kmh=(typeof s.spd==="number")?s.spd:null;
+    $("vPwr").textContent = kmh!=null ? Math.round(kmh)+" km/h" : "—";
+    setGauge("gPwr", kmh==null ? "" : (kmh>1 ? "on" : "warn")); }
+
+  $("tLat").textContent=s.lat!=null?s.lat.toFixed(5):"—";
+  $("tLon").textContent=s.lon!=null?s.lon.toFixed(5):"—";
+  $("tFix").textContent=s.fix||"—";
+  $("tSats").textContent=s.sats!=null?s.sats:"—";
+  $("tFw").innerHTML = s.fw || "—";
+  $("tBat").innerHTML = (typeof s.bv==="number")
+      ? s.bv.toFixed(2)+' <small>V</small>' + (s.bat!=null? '  '+s.bat+' <small>%</small>':'')
+      : "—";
+  $("tRf").innerHTML=csqText(s.csq);
+  $("tOp").textContent=s.op||"—";
+  $("tNet").textContent=s.net||"—";
+  $("lastSeen").textContent="last "+fmtAge(s.ts);
+  const co=(s.lat!=null)?s.lat.toFixed(5)+", "+s.lon.toFixed(5):"—";
+  $("mapCoord").textContent=co; $("mapOffline").querySelector(".co").textContent=co;
+  renderBB(); updateMap(s.lat,s.lon);
+}
+function renderBB(){ const b=$("bbBtn");
+  b.classList.toggle("armed",bbBusy);
+  if(bbBusy){
+    const s=Math.ceil(bbLeft/1000);
+    $("bbPill").textContent=s+"s";
+    $("bbSub").textContent="holding the button down…";
+  } else {
+    $("bbPill").textContent="PRESS";
+    $("bbSub").textContent="10-second press";
+  }
+}
+function setGauge(id,cls){ const g=$(id); g.classList.remove("on","warn","off"); if(cls)g.classList.add(cls); }
+
+/* ---------- map ---------- */
+function initMap(){ try{
+  map=L.map("map",{zoomControl:false,attributionControl:false}).setView([31.7683,35.2137],14);
+  const tl=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19});
+  tl.on("tileload",()=>{ if(!tilesOK){tilesOK=true;$("mapOffline").style.display="none";} });
+  tl.on("tileerror",()=>{ if(!tilesOK)$("mapOffline").style.display="flex"; });
+  tl.addTo(map);
+  // any manual pan/zoom drops follow mode, so the map stops fighting you
+  map.on("dragstart",()=>setFollow(false));
+  map.on("zoomstart",e=>{ if(!followProgrammatic) setFollow(false); });
+}catch(e){ $("mapOffline").style.display="flex"; } }
+
+let followProgrammatic=false;
+function setFollow(on){
+  follow=on;
+  const b=$("followBtn"); if(!b)return;
+  b.textContent = on ? "◎ follow" : "○ free";
+  b.style.color = on ? "var(--ice)" : "var(--dim)";
+  if(on && marker){ followProgrammatic=true; map.setView(marker.getLatLng(), map.getZoom(), {animate:true});
+    setTimeout(()=>followProgrammatic=false,400); }
+}
+function updateMap(lat,lon){ if(!map||lat==null)return; const p=[lat,lon];
+  if(!marker){ const ic=L.divIcon({className:"",html:'<div style="width:18px;height:18px;border-radius:50%;background:#D50F2C;border:3px solid #141418;box-shadow:0 0 0 2px #D50F2C,0 0 14px rgba(213,15,44,.8)"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+    marker=L.marker(p,{icon:ic}).addTo(map); followProgrammatic=true; map.setView(p,15);
+    setTimeout(()=>followProgrammatic=false,400);
+  } else {
+    marker.setLatLng(p);
+    if(follow){ followProgrammatic=true; map.panTo(p,{animate:true,duration:.6});
+      setTimeout(()=>followProgrammatic=false,800); }
+  } }
+
+/* ---------- cell info + geolocation ---------- */
+let cellMarker=null, cellCircle=null;
+function q(dbm){ return dbm>=-80?["excellent","#34c759"]:dbm>=-90?["good","#8bc34a"]
+  :dbm>=-100?["fair","#ffcc00"]:dbm>=-110?["poor","#ff9500"]:["cell edge","#ff3b30"]; }
+function bar(pct,color){ pct=Math.max(0,Math.min(100,pct));
+  return '<div class="bar"><i style="width:'+pct+'%;background:'+color+'"></i></div>'; }
+
+function renderCell(c){
+  // location payload?
+  if(c.kind==="celloc"){
+    const el=$("cellLoc"); el.style.display="block";
+    el.innerHTML='<b>Cell location</b> (coarse, ~'+Math.round(c.range||0)+' m radius)<br>'+
+      c.lat.toFixed(5)+', '+c.lon.toFixed(5)+
+      ' &nbsp;<a href="https://maps.google.com/?q='+c.lat+','+c.lon+'" target="_blank">open ↗</a>';
+    dropCellPin(c.lat,c.lon,c.range||1000);
+    toast("Cell location received");
+    return;
+  }
+  // diagnostics payload
+  const rows=[];
+  const add=(k,v,x,full)=>rows.push('<div class="cellrow'+(full?' full':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(x?'<div class="x">'+x+'</div>':'')+'</div>');
+  const regTxt={0:"not searching",1:"registered (home)",2:"searching",3:"DENIED",4:"unknown",5:"registered (roaming)"}[c.reg]||("state "+c.reg);
+  add("Network", (c.mcc||"?")+"-"+(c.mnc||"?"), c.mcc===425?"Israel":"MCC-MNC");
+  add("Registration", regTxt, c.reg===3?"network refused — data plan?":"", true);
+  if(c.rat==="LTE"){
+    const [ql,qc]=q(c.rsrp);
+    // map RSRP -140..-44 to 0..100 for the bar
+    const pct=(c.rsrp+140)/(96)*100;
+    add("RSRP", c.rsrp.toFixed(1)+" dBm", "signal strength — "+ql+bar(pct,qc), true);
+    add("RSRQ", c.rsrq.toFixed(1)+" dB", ">-10 good, <-15 poor");
+    add("SINR", c.sinr.toFixed(1)+" dB", ">10 clean, <0 noisy");
+    add("eNodeB", c.enb, "the tower");
+    add("Cell", c.cid, c.cid===0?"macro (outdoor)":c.cid<8?"macro sector":"micro/indoor?");
+    add("TAC", c.tac, "tracking area");
+    add("EARFCN", c.earfcn, "LTE channel");
+    add("ECI", c.eci, "full cell identity", true);
+  } else {
+    add("RAT", c.rat||"—", "not LTE", true);
+  }
+  $("cellGrid").innerHTML=rows.join("");
+}
+
+function dropCellPin(lat,lon,range){
+  if(!map)return; const p=[lat,lon];
+  if(cellCircle){ map.removeLayer(cellCircle); }
+  cellCircle=L.circle(p,{radius:range,color:"#5ac8fa",weight:1,fillColor:"#5ac8fa",fillOpacity:.12}).addTo(map);
+  if(!cellMarker){
+    const ic=L.divIcon({className:"",html:'<div style="width:14px;height:14px;border-radius:50%;background:#5ac8fa;border:2px solid #141418;box-shadow:0 0 10px rgba(90,200,250,.9)"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+    cellMarker=L.marker(p,{icon:ic}).addTo(map);
+  } else cellMarker.setLatLng(p);
+  map.setView(p, 13);
+}
+
+/* ---------- commands ---------- */
+// cell panel buttons
+["cellRefresh","cellLocate","cellData","cellHist"].forEach(id=>{
+  const el=$(id); if(!el)return;
+  el.addEventListener("click",()=>{
+    const cmd={cellRefresh:"cell",cellLocate:"locate",cellData:"data",cellHist:"hist"}[id];
+    publishCmd(cmd,null,el);
+    toast(id==="cellLocate"?"Locating via cell…":"Requested — watch below");
+  });
+});
+(function(){ const t=$("cellToggle"),c=$("cellCard");
+  if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
+
+document.querySelectorAll(".cmd").forEach(btn=>{
+  btn.addEventListener("click",(ev)=>{
+    const cmd=btn.dataset.cmd;
+    if(!cmd) return;                       // geofence buttons handle themselves
+    ripple(btn,ev);
+    if(cmd==="blackbox" && bbBusy){ toast("Already pressing…"); return; }
+    publishCmd(cmd,null,btn);
+  });
+});
+
+/* ---------- node log (remote serial monitor) ---------- */
+const logLines=[];
+function pushLog(line){
+  const t=new Date().toTimeString().slice(0,8);
+  logLines.push(t+"  "+line);
+  if(logLines.length>200) logLines.shift();
+  const el=$("nodeLog"); if(!el) return;
+  el.textContent=logLines.join("\n");
+  el.scrollTop=el.scrollHeight;
+}
+$("logToggle").addEventListener("click",()=>{
+  const c=$("logCard"), open=c.classList.toggle("collapsed");
+  $("logToggle").textContent=open?"show ▾":"hide ▴";
+});
+$("logClear").addEventListener("click",()=>{ logLines.length=0; $("nodeLog").textContent="Cleared."; });
+
+/* ---------- field log (in-memory) ---------- */
+let photo=null,voice=null; const entries=[];
+function readFile(inp,cb){ const f=inp.files&&inp.files[0]; if(!f){cb(null);return;}
+  const rd=new FileReader(); rd.onload=()=>cb({url:rd.result,name:f.name}); rd.readAsDataURL(f); }
+$("phIn").addEventListener("change",e=>readFile(e.target,d=>{ photo=d;
+  $("phLbl").classList.toggle("set",!!d); $("phTxt").textContent=d?"▣ Photo ✓":"▣ Photo"; refreshSave(); }));
+$("vcIn").addEventListener("change",e=>readFile(e.target,d=>{ voice=d;
+  $("vcLbl").classList.toggle("set",!!d); $("vcTxt").textContent=d?"◉ Voice ✓":"◉ Voice"; refreshSave(); }));
+$("note").addEventListener("input",refreshSave);
+function refreshSave(){ $("saveBtn").disabled=!($("note").value.trim()||photo||voice); }
+$("saveBtn").addEventListener("click",()=>{ const s=state||{};
+  entries.unshift({t:Date.now(),lat:s.lat,lon:s.lon,note:$("note").value.trim(),photo,voice});
+  photo=voice=null; $("note").value=""; $("phIn").value=""; $("vcIn").value="";
+  $("phLbl").classList.remove("set"); $("vcLbl").classList.remove("set");
+  $("phTxt").textContent="▣ Photo"; $("vcTxt").textContent="◉ Voice"; refreshSave(); renderEntries(); toast("Entry logged"); });
+function renderEntries(){ $("logCount").textContent=entries.length+(entries.length===1?" entry":" entries");
+  const box=$("entries");
+  if(!entries.length){ box.innerHTML='<div class="empty">No entries yet. Photos and voice stay on this phone, pinned to the node\'s position.</div>'; return; }
+  box.innerHTML="";
+  entries.forEach(e=>{ const co=e.lat!=null?e.lat.toFixed(5)+", "+e.lon.toFixed(5):"no fix";
+    const time=new Date(e.t).toLocaleString(); const d=document.createElement("div"); d.className="entry";
+    let media=""; if(e.photo)media+='<img src="'+e.photo.url+'" alt="log photo">'; if(e.voice)media+='<audio controls src="'+e.voice.url+'"></audio>';
+    d.innerHTML='<div class="meta"><span class="mono co">'+co+'</span><span class="mono">'+time+'</span></div>'+
+      (e.note?'<div class="txt">'+e.note.replace(/</g,"&lt;")+'</div>':'')+(media?'<div class="media">'+media+'</div>':'');
+    box.appendChild(d); });
+}
+
+/* ---------- boot ---------- */
+
+/* ---------- off-grid LoRa unlock code ---------- */
+function renderLora(){
+  const now=Math.floor(Date.now()/1000);
+  const left=60-(now%60);
+  $("loraLeft").textContent=left+"s";
+  const sec=(CONFIG.secret||$("cSecret").value||"").trim();
+  if(!sec){ $("loraCode").textContent="set secret first"; return; }
+  const step=Math.floor(now/60);
+  const tok=meshToken(sec,step);
+  $("loraCode").textContent="PJRO UNLOCK "+tok;
+}
+$("openMesh").addEventListener("click",()=>{
+  const t=Date.now();
+  location.href="meshtastic:///map";
+  setTimeout(()=>{ if(Date.now()-t<1600 && !document.hidden) toast("Meshtastic app not installed"); },1200);
+});
+$("loraCopy").addEventListener("click",()=>{
+  const txt=$("loraCode").textContent;
+  if(!txt.startsWith("PJRO")){ toast("Set your secret first"); return; }
+  (navigator.clipboard&&navigator.clipboard.writeText(txt).then(()=>toast("Code copied"),()=>toast(txt)))||toast(txt);
+});
+setInterval(renderLora,1000); renderLora();
+
+initMap(); render(demoStatus());
+if(CONFIG.broker) connect();
+</script>
+</body>
+</html>
