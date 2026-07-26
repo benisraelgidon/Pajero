@@ -331,6 +331,14 @@
     <div class="sub" style="margin-top:12px">The node checks the hash before
       installing. A wrong hash is discarded and the current firmware keeps
       running. Watch the Node log for progress.</div>
+    <div style="border-top:1px solid var(--line);margin:14px 0;padding-top:14px">
+      <div style="font-size:13px;color:var(--text);margin-bottom:6px"><b>Update via Telegram</b> (works when web hosts fail)</div>
+      <div class="sub" style="margin-bottom:10px">1. Send <code>pajero_node.bin</code> to your bot as a file.
+        2. Paste its SHA-256 below. 3. Tap. The node pulls it over Telegram's TLS.</div>
+      <div class="field"><label>SHA-256 of the .bin</label>
+        <input id="tgOtaSha" placeholder="a3f1…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <button class="save" id="tgOtaGo" style="width:100%;margin-top:8px">Update via Telegram</button>
+    </div>
   </div></div>
 
   <div class="sec">Connection <span class="r tap" id="connToggle">setup ▾</span></div>
@@ -552,6 +560,13 @@ $("otaTest").addEventListener("click",(ev)=>{
   ripple($("otaTest"),ev);
   publishCmd("otatest",{url:u});
   toast("Probing URL — watch the Node log");
+});
+$("tgOtaGo").addEventListener("click",(ev)=>{
+  const h=$("tgOtaSha").value.trim().toLowerCase();
+  if(!/^[0-9a-f]{64}$/.test(h)){ toast("SHA-256 must be 64 hex characters"); return; }
+  ripple($("tgOtaGo"),ev);
+  publishCmd("tgota",{sha256:h});
+  toast("Pulling firmware via Telegram — watch the Node log");
 });
 $("otaGo").addEventListener("click",(ev)=>{
   const u=$("otaUrl").value.trim(), h=$("otaSha").value.trim().toLowerCase();
