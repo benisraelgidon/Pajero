@@ -324,7 +324,10 @@
              autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="field"><label>SHA-256 of that file (64 hex chars)</label>
       <input id="otaSha" placeholder="a3f1…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
-    <button class="save" id="otaGo">Send update</button>
+    <div style="display:flex;gap:8px">
+      <button class="save" id="otaTest" style="flex:1;background:#2a2a30">Test URL (no flash)</button>
+      <button class="save" id="otaGo" style="flex:1">Send update</button>
+    </div>
     <div class="sub" style="margin-top:12px">The node checks the hash before
       installing. A wrong hash is discarded and the current firmware keeps
       running. Watch the Node log for progress.</div>
@@ -542,6 +545,13 @@ $("followBtn").addEventListener("click",()=>setFollow(!follow));
 $("otaToggle").addEventListener("click",()=>{
   const open=$("otaCard").classList.toggle("collapsed");
   $("otaToggle").textContent=open?"show ▾":"hide ▴";
+});
+$("otaTest").addEventListener("click",(ev)=>{
+  const u=$("otaUrl").value.trim();
+  if(!/^https?:\/\//.test(u)){ toast("Enter a http(s) URL first"); return; }
+  ripple($("otaTest"),ev);
+  publishCmd("otatest",{url:u});
+  toast("Probing URL — watch the Node log");
 });
 $("otaGo").addEventListener("click",(ev)=>{
   const u=$("otaUrl").value.trim(), h=$("otaSha").value.trim().toLowerCase();
