@@ -309,7 +309,37 @@
     <div id="cellLoc" class="cellloc" style="display:none"></div>
   </div></div>
 
-  <div class="sec">Node log <span class="r tap" id="logToggle">show ▾</span></div>
+
+  <div class="sec">Diagnostics <span class="r tap" id="diagToggle">show ▾</span></div>
+  <div class="card collapsed" id="diagCard"><div class="body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="connect" id="diagRun">Health check</button>
+      <button class="connect" id="diagScan">I²C scan</button>
+      <button class="connect" id="diagAccel">Read accel</button>
+      <button class="connect" id="diagLive">Live accel ▶</button>
+    </div>
+    <div id="diagGrid" class="cellgrid"><div class="cellempty">Tap “Health check” for a full status sweep.</div></div>
+    <div id="accelBox" style="display:none;margin-top:14px">
+      <div style="display:flex;gap:8px;text-align:center">
+        <div style="flex:1;background:var(--card2,#1c2128);border-radius:10px;padding:10px 4px">
+          <div style="font-size:11px;color:var(--muted)">X</div>
+          <div id="axv" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:16px">—</div></div>
+        <div style="flex:1;background:var(--card2,#1c2128);border-radius:10px;padding:10px 4px">
+          <div style="font-size:11px;color:var(--muted)">Y</div>
+          <div id="ayv" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:16px">—</div></div>
+        <div style="flex:1;background:var(--card2,#1c2128);border-radius:10px;padding:10px 4px">
+          <div style="font-size:11px;color:var(--muted)">Z</div>
+          <div id="azv" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:16px">—</div></div>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:8px">
+        Values in g. The axis facing down should read about ±1.000.
+        Tap the board and the INT1 count should rise — that proves the GPIO 21 wire.
+      </div>
+      <div style="font-size:12px;margin-top:6px">INT1 events: <b id="aint">0</b></div>
+    </div>
+  </div></div>
+
+  <div class="sec">Node log <span class="r tap" id="logDump" style="margin-right:14px;color:var(--accent,#5ac8fa)">dump ⟳</span><span class="r tap" id="logToggle">show ▾</span></div>
   <div class="card collapsed" id="logCard"><div class="body">
     <div id="nodeLog" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;
       line-height:1.65;color:var(--muted);max-height:210px;overflow-y:auto;word-break:break-word">
@@ -568,6 +598,8 @@ $("tgOtaGo").addEventListener("click",(ev)=>{
   publishCmd("tgota",{sha256:h});
   toast("Pulling firmware via Telegram — watch the Node log");
 });
+(function(){ const b=document.getElementById("logDump");
+  if(b) b.addEventListener("click",(ev)=>{ ev.stopPropagation(); publishCmd("dump",null); toast("Pulling log history…"); }); })();
 $("otaGo").addEventListener("click",(ev)=>{
   const u=$("otaUrl").value.trim(), h=$("otaSha").value.trim().toLowerCase();
   if(!/^https?:\/\//.test(u)){ toast("Enter a http(s) URL"); return; }
@@ -716,6 +748,42 @@ function bar(pct,color){ pct=Math.max(0,Math.min(100,pct));
   return '<div class="bar"><i style="width:'+pct+'%;background:'+color+'"></i></div>'; }
 
 function renderCell(c){
+  // ---- diagnostics payloads ----
+  if(c.kind==="accel"){
+    $("accelBox").style.display="block";
+    $("axv").textContent=(c.x>=0?"+":"")+c.x.toFixed(3);
+    $("ayv").textContent=(c.y>=0?"+":"")+c.y.toFixed(3);
+    $("azv").textContent=(c.z>=0?"+":"")+c.z.toFixed(3);
+    $("aint").textContent=c.int;
+    return;
+  }
+  if(c.kind==="scan"){
+    const names={"36":"MAX17048 gauge","18":"LIS3DH accel","20":"PCF8574 expander"};
+    const list=(c.addrs||"").trim().split(/\s+/).filter(Boolean);
+    let rows=list.length
+      ? list.map(a=>`<div class="cellrow"><div class="k">0x${a}</div><div class="v">${names[a]||"unknown device"}</div></div>`).join("")
+      : `<div class="cellrow full"><div class="k">nothing found</div><div class="x">check 3V3, GND, and that SDA/SCL are not swapped</div></div>`;
+    const missing=[];
+    if(!list.includes("36")) missing.push("gauge 0x36");
+    if(!list.includes("18")) missing.push("LIS3DH 0x18 — needs CS→3V3 and SDO→GND");
+    if(missing.length) rows+=`<div class="cellrow full"><div class="k">missing</div><div class="x">${missing.join(" · ")}</div></div>`;
+    $("diagGrid").innerHTML=rows;
+    return;
+  }
+  if(c.kind==="diag"){
+    const reg={0:"not searching",1:"registered (home)",2:"searching",3:"DENIED",4:"unknown",5:"roaming"}[c.reg]||("state "+c.reg);
+    const row=(k,v,x,full)=>`<div class="cellrow${full?" full":""}"><div class="k">${k}</div><div class="v">${v}</div>${x?`<div class="x">${x}</div>`:""}</div>`;
+    $("diagGrid").innerHTML=
+      row("Firmware",c.fw,"uptime "+c.up+" s",true)+
+      row("Battery",c.bv.toFixed(2)+" V",c.bp+"% · gauge "+(c.gauge?"ok":"ABSENT"),true)+
+      row("Registration",reg,c.reg===3?"network refused — check the data plan":"",true)+
+      row("Signal",c.csq===99?"none":c.csq,"CSQ (99 = no signal)")+
+      row("Network",c.net?"up":"down","")+
+      row("Data",c.data?"connected":"down","")+
+      row("CAN",c.can?"driver up":"DOWN",c.canf+" frames — 0 means engine off or wiring",true)+
+      row("Free heap",(c.heap/1024).toFixed(0)+" kB","");
+    return;
+  }
   // location payload?
   if(c.kind==="celloc"){
     const el=$("cellLoc"); el.style.display="block";
@@ -790,6 +858,22 @@ function dropCellPin(lat,lon,range,clat,clon){
     toast(id==="cellLocate"?"Locating via cell…":"Requested — watch below");
   });
 });
+(function(){ const t=$("diagToggle"),c=$("diagCard");
+  if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
+let accelTimer=null;
+(function(){
+  const b=(id,cmd,msg)=>{ const el=$(id); if(el) el.addEventListener("click",()=>{ publishCmd(cmd,null,el); toast(msg); }); };
+  b("diagRun","diag","Running health check…");
+  b("diagScan","scan","Scanning I²C bus…");
+  b("diagAccel","accel","Reading accelerometer…");
+  const live=$("diagLive");
+  if(live) live.addEventListener("click",()=>{
+    if(accelTimer){ clearInterval(accelTimer); accelTimer=null; live.textContent="Live accel ▶"; toast("Live stopped"); }
+    else { publishCmd("accel",null,live);
+           accelTimer=setInterval(()=>publishCmd("accel",null,null),1200);
+           live.textContent="Live accel ■"; toast("Live — tilt and tap the board"); }
+  });
+})();
 (function(){ const t=$("cellToggle"),c=$("cellCard");
   if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
 
