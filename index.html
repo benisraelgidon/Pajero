@@ -173,6 +173,13 @@
     font-family:"Saira Condensed";font-weight:800;font-style:italic;font-size:15px;letter-spacing:.1em;text-transform:uppercase}
   .copy{background:var(--red);color:#fff} .copy:active{opacity:.88}
   .connect{background:var(--ice);color:#0B1220;margin-top:4px}
+  .connect.active{background:var(--ok);color:#04140c}
+  .connect.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  .evrow{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .evrow .ek{font-size:13.5px;color:var(--text)}
+  .evrow .et{font-size:11px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .evrow .el{margin-top:3px;font-size:11.5px}
+  .evrow.ok .dot{background:var(--ok)} .evrow.warn .dot{background:var(--gold)} .evrow.bad .dot{background:var(--red)}
 
   /* connection panel */
   .field{margin-bottom:10px}
@@ -252,11 +259,11 @@
       <div class="cell"><div class="lab">Longitude</div><div class="num" id="tLon">—</div></div>
       <div class="cell"><div class="lab">Fix</div><div class="num" id="tFix">—</div></div>
       <div class="cell"><div class="lab">Satellites</div><div class="num" id="tSats">—</div></div>
-      <div class="cell"><div class="lab">Firmware</div><div class="num" id="tFw">—</div></div>
       <div class="cell"><div class="lab">Node battery</div><div class="num" id="tBat">—</div></div>
       <div class="cell"><div class="lab">LTE signal</div><div class="num" id="tRf">—</div></div>
       <div class="cell"><div class="lab">Operator</div><div class="num" id="tOp">—</div></div>
       <div class="cell"><div class="lab">Network</div><div class="num" id="tNet">—</div></div>
+      <div class="cell"><div class="lab">Firmware</div><div class="num" id="tFw">—</div></div>
     </div>
   </div></div>
 
@@ -267,12 +274,22 @@
       <div class="cell"><div class="lab">Auto gate</div><div class="num" id="gAuto">—</div></div>
     </div>
     <div class="field"><label>Fence radius (metres)</label><input id="gRad" type="number" value="120" inputmode="numeric"></div>
+    <div class="row2">
+      <div class="field"><label>Latitude (optional)</label><input id="gLat" placeholder="use car's GPS" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+      <div class="field"><label>Longitude (optional)</label><input id="gLon" placeholder="use car's GPS" inputmode="decimal" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    </div>
     <div class="cmds">
       <button class="cmd gate" data-geo="sethome">Set home<small>uses car's GPS now</small></button>
+      <button class="cmd gate" data-geo="setgeo">Set by coords<small>uses the fields above</small></button>
       <button class="cmd lock" data-geo="gatetoggle">Auto gate<small>on / off</small></button>
       <button class="cmd gate" data-geo="tgtest">Test alert<small>sends to Telegram</small></button>
       <button class="cmd unlock" data-geo="clearhome">Clear fence<small>remove home point</small></button>
     </div>
+  </div></div>
+
+  <div class="sec">Activity <span class="r" id="evCount">0 events</span></div>
+  <div class="card"><div class="body">
+    <div class="entries" id="evList"><div class="empty">No events yet. Geofence crossings, drive start/stop, engine start/stop and fault codes will appear here as the node reports them.</div></div>
   </div></div>
 
   <div class="sec">Off-grid unlock <span class="r num" id="loraLeft">--s</span></div>
@@ -297,6 +314,17 @@
     <div class="entries" id="entries"><div class="empty">No entries yet. Photos and voice stay on this phone, pinned to the node's position.</div></div>
   </div></div>
 
+  <div class="sec">Engine &amp; OBD-II <span class="r tap" id="obdToggle">show ▾</span></div>
+  <div class="card collapsed" id="obdCard"><div class="body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="connect" id="obdRefresh">Request report</button>
+      <button class="connect" id="obdDtc">Read fault codes</button>
+      <button class="connect" id="obdRescan">Rescan supported PIDs</button>
+    </div>
+    <div id="obdGrid" class="cellgrid"><div class="cellempty">Tap “Request report” — needs the engine running and CAN wired in.</div></div>
+    <div class="sub" style="margin-top:12px">Reports also arrive on their own 3 minutes after the node first sees the engine running, and whenever a new fault code appears.</div>
+  </div></div>
+
   <div class="sec">Cell &amp; signal <span class="r tap" id="cellToggle">show ▾</span></div>
   <div class="card collapsed" id="cellCard"><div class="body">
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
@@ -309,42 +337,34 @@
     <div id="cellLoc" class="cellloc" style="display:none"></div>
   </div></div>
 
-
-  <div class="sec">Diagnostics <span class="r tap" id="diagToggle">show ▾</span></div>
-  <div class="card collapsed" id="diagCard"><div class="body">
+  <div class="sec">System <span class="r" id="fwVer">—</span><span class="r tap" id="sysToggle" style="margin-left:10px">show ▾</span></div>
+  <div class="card collapsed" id="sysCard"><div class="body">
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-      <button class="connect" id="diagRun">Health check</button>
-      <button class="connect" id="diagScan">I²C scan</button>
-      <button class="connect" id="diagAccel">Read accel</button>
-      <button class="connect" id="diagLive">Live accel ▶</button>
+      <button class="connect" id="sysDiag">Full diagnostics</button>
+      <button class="connect" id="sysScan">Scan I2C bus</button>
+      <button class="connect" id="sysVer">Check version</button>
     </div>
-    <div id="diagGrid" class="cellgrid"><div class="cellempty">Tap “Health check” for a full status sweep.</div></div>
-    <div id="accelBox" style="display:none;margin-top:14px">
-      <div style="display:flex;gap:8px;text-align:center">
-        <div style="flex:1;background:var(--card2,#1c2128);border-radius:10px;padding:10px 4px">
-          <div style="font-size:11px;color:var(--muted)">X</div>
-          <div id="axv" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:16px">—</div></div>
-        <div style="flex:1;background:var(--card2,#1c2128);border-radius:10px;padding:10px 4px">
-          <div style="font-size:11px;color:var(--muted)">Y</div>
-          <div id="ayv" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:16px">—</div></div>
-        <div style="flex:1;background:var(--card2,#1c2128);border-radius:10px;padding:10px 4px">
-          <div style="font-size:11px;color:var(--muted)">Z</div>
-          <div id="azv" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:16px">—</div></div>
-      </div>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:8px">
-        Values in g. The axis facing down should read about ±1.000.
-        Tap the board and the INT1 count should rise — that proves the GPIO 21 wire.
-      </div>
-      <div style="font-size:12px;margin-top:6px">INT1 events: <b id="aint">0</b></div>
-    </div>
+    <div id="sysGrid" class="cellgrid"><div class="cellempty">Tap “Full diagnostics” for uptime, heap, CAN and network state in one shot.</div></div>
   </div></div>
 
-  <div class="sec">Node log <span class="r tap" id="logDump" style="margin-right:14px;color:var(--accent,#5ac8fa)">dump ⟳</span><span class="r tap" id="logToggle">show ▾</span></div>
+  <div class="sec">Accelerometer <span class="r num" id="accelInt">— int</span><span class="r tap" id="accelToggle" style="margin-left:10px">show ▾</span></div>
+  <div class="card collapsed" id="accelCard"><div class="body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="connect" id="accelRead">Read once</button>
+      <button class="connect ghost" id="accelWatch">Live watch</button>
+    </div>
+    <div id="accelGrid" class="cellgrid"><div class="cellempty">Tap “Read once”, or “Live watch” to poll every second while you tilt/tap the board.</div></div>
+  </div></div>
+
+  <div class="sec">Node log <span class="r tap" id="logToggle">show ▾</span></div>
   <div class="card collapsed" id="logCard"><div class="body">
     <div id="nodeLog" style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;
       line-height:1.65;color:var(--muted);max-height:210px;overflow-y:auto;word-break:break-word">
       Waiting for the node…</div>
-    <button class="connect" id="logClear" style="margin-top:12px">Clear</button>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="connect" id="logDump" style="margin-top:0">Dump history</button>
+      <button class="connect ghost" id="logClear" style="margin-top:0">Clear</button>
+    </div>
   </div></div>
 
   <div class="sec">Firmware update <span class="r tap" id="otaToggle">show ▾</span></div>
@@ -354,21 +374,19 @@
              autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="field"><label>SHA-256 of that file (64 hex chars)</label>
       <input id="otaSha" placeholder="a3f1…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
-    <div style="display:flex;gap:8px">
-      <button class="save" id="otaTest" style="flex:1;background:#2a2a30">Test URL (no flash)</button>
-      <button class="save" id="otaGo" style="flex:1">Send update</button>
-    </div>
-    <div class="sub" style="margin-top:12px">The node checks the hash before
-      installing. A wrong hash is discarded and the current firmware keeps
-      running. Watch the Node log for progress.</div>
-    <div style="border-top:1px solid var(--line);margin:14px 0;padding-top:14px">
-      <div style="font-size:13px;color:var(--text);margin-bottom:6px"><b>Update via Telegram</b> (works when web hosts fail)</div>
-      <div class="sub" style="margin-bottom:10px">1. Send <code>pajero_node.bin</code> to your bot as a file.
-        2. Paste its SHA-256 below. 3. Tap. The node pulls it over Telegram's TLS.</div>
-      <div class="field"><label>SHA-256 of the .bin</label>
-        <input id="tgOtaSha" placeholder="a3f1…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
-      <button class="save" id="tgOtaGo" style="width:100%;margin-top:8px">Update via Telegram</button>
-    </div>
+    <button class="connect ghost" id="otaTest">Test URL only (no flash)</button>
+    <button class="save" id="otaGo" style="margin-top:10px">Send update</button>
+    <div class="sub" style="margin-top:12px">“Test URL” exercises the exact download path — connect, TLS, HTTP status,
+      redirects — without ever writing to flash. Run it first. The real update
+      checks the hash before installing; a wrong hash is discarded and the
+      current firmware keeps running. Watch the Node log for progress either way.</div>
+    <div style="height:1px;background:var(--line);margin:16px 0"></div>
+    <div class="kv" style="font-family:'Saira Condensed';font-weight:700;font-style:italic;font-size:13px;
+         letter-spacing:.13em;text-transform:uppercase;color:var(--silver);margin-bottom:10px">Via Telegram</div>
+    <button class="connect" id="otaTg">Pull .bin from the bot</button>
+    <div class="sub" style="margin-top:12px">Send the .bin to your bot as a Document first, then tap this — the node
+      reads back the newest document. Uses the same SHA-256 field above. This is
+      the route to use if plain URL downloads fail the TLS handshake.</div>
   </div></div>
 
   <div class="sec">Connection <span class="r tap" id="connToggle">setup ▾</span></div>
@@ -521,14 +539,33 @@ function connect(){
     diag();
     if(t.endsWith("/log")){
       const line=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
-      pushLog(line);
+      // the firmware also drops a raw {"ack":...} JSON blob on this same topic
+      // (see onMessage() in the .ino) -- it duplicates the "[ack] cmd" text line
+      // that follows it, so keep it out of the human-readable panel.
+      if(!/^\s*\{/.test(line)) pushLog(line);
       const m=line.match(/\[ack\]\s+(\w+)/);
       if(m) confirmCmd(m[1]==="gateauto"?"gateauto":m[1]);
+      const dSess=line.match(/^\[data\] session:\s*([\d.]+)\s*B down \/ ([\d.]+)\s*B up/);
+      if(dSess) setDataUsage(dSess[1],dSess[2],null,null);
+      const dLife=line.match(/^\[data\] lifetime:\s*([\d.]+)\s*MB down \/ ([\d.]+)\s*MB up/);
+      if(dLife) setDataUsage(null,null,dLife[1],dLife[2]);
+      const ver=line.match(/^\[ver\]\s+fw\s+(\S+)\s+built\s+(.+)$/);
+      if(ver){ $("fwVer").textContent="fw "+ver[1]; toast("Running fw "+ver[1]+" · built "+ver[2]); }
       return;
     }
     if(t.endsWith("/cell")){
       const raw=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
       try{ renderCell(JSON.parse(raw)); }catch(e){ /* ignore malformed */ }
+      return;
+    }
+    if(t.endsWith("/event")){
+      const raw=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
+      try{ renderEvent(JSON.parse(raw)); }catch(e){ /* ignore malformed */ }
+      return;
+    }
+    if(t.endsWith("/obd")){
+      const raw=(typeof payload==="string")?payload:new TextDecoder().decode(payload);
+      try{ renderObd(JSON.parse(raw)); }catch(e){ /* ignore malformed */ }
       return;
     }
     if(!t.endsWith("/status")) return;
@@ -571,6 +608,7 @@ function publishCmd(cmd,extra,el){
   if(demo || !client || !connected){
     // demo behaviour so the UI still responds
     if(cmd==="blackbox") demoPulse();
+    setTimeout(()=>demoReply(cmd),320);       // fake the node's round-trip
     toast(label(cmd)+" (demo)"); return;
   }
   client.publish(topics().cmd,payload,{qos:1},err=>{
@@ -584,26 +622,11 @@ $("otaToggle").addEventListener("click",()=>{
   const open=$("otaCard").classList.toggle("collapsed");
   $("otaToggle").textContent=open?"show ▾":"hide ▴";
 });
-$("otaTest").addEventListener("click",(ev)=>{
-  const u=$("otaUrl").value.trim();
-  if(!/^https?:\/\//.test(u)){ toast("Enter a http(s) URL first"); return; }
-  ripple($("otaTest"),ev);
-  publishCmd("otatest",{url:u});
-  toast("Probing URL — watch the Node log");
-});
-$("tgOtaGo").addEventListener("click",(ev)=>{
-  const h=$("tgOtaSha").value.trim().toLowerCase();
-  if(!/^[0-9a-f]{64}$/.test(h)){ toast("SHA-256 must be 64 hex characters"); return; }
-  ripple($("tgOtaGo"),ev);
-  publishCmd("tgota",{sha256:h});
-  toast("Pulling firmware via Telegram — watch the Node log");
-});
-(function(){ const b=document.getElementById("logDump");
-  if(b) b.addEventListener("click",(ev)=>{ ev.stopPropagation(); publishCmd("dump",null); toast("Pulling log history…"); }); })();
 $("otaGo").addEventListener("click",(ev)=>{
   const u=$("otaUrl").value.trim(), h=$("otaSha").value.trim().toLowerCase();
   if(!/^https?:\/\//.test(u)){ toast("Enter a http(s) URL"); return; }
   if(!/^[0-9a-f]{64}$/.test(h)){ toast("SHA-256 must be 64 hex characters"); return; }
+  if(!confirm("Flash new firmware to the node?\n\nThe node verifies the SHA-256 before installing, then reboots.")) return;
   ripple($("otaGo"),ev);
   publishCmd("ota",{url:u,sha256:h});
   toast("Update sent — watch the Node log");
@@ -615,6 +638,12 @@ document.querySelectorAll("[data-geo]").forEach(b=>{
     const a=b.dataset.geo;
     const r=parseInt($("gRad").value,10)||120;
     if(a==="sethome")        publishCmd("sethome",{radius:r},b);
+    else if(a==="setgeo"){
+      const la=parseFloat($("gLat").value), lo=parseFloat($("gLon").value);
+      if(!isFinite(la)||!isFinite(lo)){ toast("Enter both latitude and longitude"); return; }
+      if(la<-90||la>90||lo<-180||lo>180){ toast("Coordinates out of range"); return; }
+      publishCmd("setgeo",{lat:la,lon:lo,radius:r,auto:!!(state&&state.gauto)},b);
+    }
     else if(a==="clearhome") publishCmd("clearhome",null,b);
     else if(a==="tgtest")    publishCmd("tgtest",null,b);
     else if(a==="gatetoggle")publishCmd("gateauto",{on:!(state&&state.gauto)},b);
@@ -623,7 +652,10 @@ document.querySelectorAll("[data-geo]").forEach(b=>{
 
 function label(c){ return c==="unlock"?"Unlock":c==="lock"?"Lock":c==="gate"?"Gate":
   c==="blackbox"?"Black Box":c==="sethome"?"Set home":c==="clearhome"?"Clear fence":
-  c==="tgtest"?"Test alert":c==="gateauto"?"Auto gate":c; }
+  c==="tgtest"?"Test alert":c==="gateauto"?"Auto gate":c==="obd"?"OBD report":
+  c==="dtc"?"Fault code read":c==="canscan"?"PID rescan":c==="diag"?"Diagnostics":
+  c==="scan"?"I2C scan":c==="accel"?"Accelerometer read":c==="ver"?"Version check":
+  c==="dump"?"Log dump":c==="otatest"?"URL test":c; }
 
 /* ---------- link freshness watchdog ---------- */
 setInterval(()=>{
@@ -638,7 +670,31 @@ let dLat=31.7683,dLon=35.2137,dBat=87,dSeq=0;
 function demoStatus(){ dSeq++; dLat+=(Math.random()-.5)*.0004; dLon+=(Math.random()-.5)*.0004;
   if(dSeq%15===0)dBat=Math.max(72,dBat-1);
   return{lat:+dLat.toFixed(5),lon:+dLon.toFixed(5),fix:"3D",sats:7+Math.floor(Math.random()*3),
-    bat:dBat,csq:16+Math.floor(Math.random()*6),op:"Partner",net:"LTE",bb:bbBusy,bbLeft:bbLeft,ts:Date.now()}; }
+    bat:dBat,bv:3.7+Math.random()*.35,csq:16+Math.floor(Math.random()*6),op:"Partner",net:"LTE",
+    fw:"1.5.0",bb:bbBusy,bbLeft:bbLeft,ts:Date.now()}; }
+
+/* Demo replies for the diagnostic panels, so every panel can be verified in the
+   browser before the hardware is live. Mirrors the firmware's real payloads. */
+function demoReply(cmd){
+  if(cmd==="obd") renderObd({rep:"demo",cool:88,oil:96,egt:412,iat:34,volt:14.1,fuel:62,
+    rpm:1850,load:37,amb:29,run:734,dtcn:0});
+  else if(cmd==="dtc") renderObd({rep:"demo dtc",dtcn:1,dtc:"P0401"});
+  else if(cmd==="diag") renderDiag({kind:"diag",fw:"1.5.0",up:8460,bv:3.92,bp:74,gauge:1,
+    reg:1,csq:19,net:1,data:1,can:1,canf:1284,heap:184320});
+  else if(cmd==="scan") renderScan({kind:"scan",n:3,addrs:"18 20 36 "});
+  else if(cmd==="accel") renderAccel({kind:"accel",x:(Math.random()-.5)*.3,y:(Math.random()-.5)*.3,
+    z:.98+(Math.random()-.5)*.05,int:Math.floor(Math.random()*40)});
+  else if(cmd==="cell") renderCell({rat:"LTE",mcc:425,mnc:1,enb:41234,cid:3,eci:10555907,
+    tac:7701,pci:188,earfcn:1650,rsrp:-89.5,rsrq:-11.2,sinr:12.4,reg:1});
+  else if(cmd==="locate") renderCell({kind:"celloc",lat:dLat+.002,lon:dLon+.0015,range:850});
+  else if(cmd==="data"){ setDataUsage("48210","31904",null,null); setDataUsage(null,null,"12.48","7.91"); }
+  else if(cmd==="ver") pushLog("[ver] fw 1.5.0  built "+new Date().toDateString());
+}
+function demoEvent(){
+  const kinds=Object.keys(EV_LABEL);
+  const k=kinds[Math.floor(Math.random()*kinds.length)];
+  renderEvent({ev:k,ts:Date.now(),lat:+dLat.toFixed(5),lon:+dLon.toFixed(5),spd:Math.round(Math.random()*80)});
+}
 
 // demo-only: mimic the node's 10s press so the countdown is testable
 function demoPulse(){
@@ -664,6 +720,9 @@ function csqText(csq){
 
 function render(s){
   state=s; bbBusy=!!s.bb; bbLeft=s.bbLeft||0;
+  // the node reports the gate line's live state; the pulse is only 400ms, so
+  // latch it briefly to make the confirmation actually visible on screen.
+  if(s.gate) flashGate();
   if($("gHome")){
     $("gHome").textContent = s.home ? "set" : "not set";
     $("gAuto").textContent = s.gauto ? "ON" : "off";
@@ -684,13 +743,14 @@ function render(s){
   $("tLon").textContent=s.lon!=null?s.lon.toFixed(5):"—";
   $("tFix").textContent=s.fix||"—";
   $("tSats").textContent=s.sats!=null?s.sats:"—";
-  $("tFw").innerHTML = s.fw || "—";
   $("tBat").innerHTML = (typeof s.bv==="number")
       ? s.bv.toFixed(2)+' <small>V</small>' + (s.bat!=null? '  '+s.bat+' <small>%</small>':'')
       : "—";
   $("tRf").innerHTML=csqText(s.csq);
   $("tOp").textContent=s.op||"—";
   $("tNet").textContent=s.net||"—";
+  $("tFw").textContent=s.fw||"—";
+  if(s.fw) $("fwVer").textContent="fw "+s.fw;
   $("lastSeen").textContent="last "+fmtAge(s.ts);
   const co=(s.lat!=null)?s.lat.toFixed(5)+", "+s.lon.toFixed(5):"—";
   $("mapCoord").textContent=co; $("mapOffline").querySelector(".co").textContent=co;
@@ -708,6 +768,12 @@ function renderBB(){ const b=$("bbBtn");
   }
 }
 function setGauge(id,cls){ const g=$(id); g.classList.remove("on","warn","off"); if(cls)g.classList.add(cls); }
+let gateFlash=null;
+function flashGate(){
+  const b=document.querySelector('.cmd.gate[data-cmd="gate"]'); if(!b) return;
+  b.classList.add("ok"); clearTimeout(gateFlash);
+  gateFlash=setTimeout(()=>b.classList.remove("ok"),1200);
+}
 
 /* ---------- map ---------- */
 function initMap(){ try{
@@ -741,72 +807,28 @@ function updateMap(lat,lon){ if(!map||lat==null)return; const p=[lat,lon];
   } }
 
 /* ---------- cell info + geolocation ---------- */
-let cellMarker=null, cellCircle=null, cellLine=null;
+let cellMarker=null, cellCircle=null;
 function q(dbm){ return dbm>=-80?["excellent","#34c759"]:dbm>=-90?["good","#8bc34a"]
   :dbm>=-100?["fair","#ffcc00"]:dbm>=-110?["poor","#ff9500"]:["cell edge","#ff3b30"]; }
 function bar(pct,color){ pct=Math.max(0,Math.min(100,pct));
   return '<div class="bar"><i style="width:'+pct+'%;background:'+color+'"></i></div>'; }
 
 function renderCell(c){
-  // ---- diagnostics payloads ----
-  if(c.kind==="accel"){
-    $("accelBox").style.display="block";
-    $("axv").textContent=(c.x>=0?"+":"")+c.x.toFixed(3);
-    $("ayv").textContent=(c.y>=0?"+":"")+c.y.toFixed(3);
-    $("azv").textContent=(c.z>=0?"+":"")+c.z.toFixed(3);
-    $("aint").textContent=c.int;
-    return;
-  }
-  if(c.kind==="scan"){
-    const names={"36":"MAX17048 gauge","18":"LIS3DH accel","20":"PCF8574 expander"};
-    const list=(c.addrs||"").trim().split(/\s+/).filter(Boolean);
-    let rows=list.length
-      ? list.map(a=>`<div class="cellrow"><div class="k">0x${a}</div><div class="v">${names[a]||"unknown device"}</div></div>`).join("")
-      : `<div class="cellrow full"><div class="k">nothing found</div><div class="x">check 3V3, GND, and that SDA/SCL are not swapped</div></div>`;
-    const missing=[];
-    if(!list.includes("36")) missing.push("gauge 0x36");
-    if(!list.includes("18")) missing.push("LIS3DH 0x18 — needs CS→3V3 and SDO→GND");
-    if(missing.length) rows+=`<div class="cellrow full"><div class="k">missing</div><div class="x">${missing.join(" · ")}</div></div>`;
-    $("diagGrid").innerHTML=rows;
-    return;
-  }
-  if(c.kind==="diag"){
-    const reg={0:"not searching",1:"registered (home)",2:"searching",3:"DENIED",4:"unknown",5:"roaming"}[c.reg]||("state "+c.reg);
-    const row=(k,v,x,full)=>`<div class="cellrow${full?" full":""}"><div class="k">${k}</div><div class="v">${v}</div>${x?`<div class="x">${x}</div>`:""}</div>`;
-    $("diagGrid").innerHTML=
-      row("Firmware",c.fw,"uptime "+c.up+" s",true)+
-      row("Battery",c.bv.toFixed(2)+" V",c.bp+"% · gauge "+(c.gauge?"ok":"ABSENT"),true)+
-      row("Registration",reg,c.reg===3?"network refused — check the data plan":"",true)+
-      row("Signal",c.csq===99?"none":c.csq,"CSQ (99 = no signal)")+
-      row("Network",c.net?"up":"down","")+
-      row("Data",c.data?"connected":"down","")+
-      row("CAN",c.can?"driver up":"DOWN",c.canf+" frames — 0 means engine off or wiring",true)+
-      row("Free heap",(c.heap/1024).toFixed(0)+" kB","");
-    return;
-  }
-  // location payload?
+  // this MQTT topic (pajero/<id>/cell) is shared by several one-shot commands --
+  // the firmware tags everything except the plain "cell" reply with a "kind".
   if(c.kind==="celloc"){
     const el=$("cellLoc"); el.style.display="block";
-    let hdg="";
-    if(typeof c.clat==="number"){
-      const R=6371000,tR=Math.PI/180;
-      const y=Math.sin((c.lon-c.clon)*tR)*Math.cos(c.lat*tR);
-      const x=Math.cos(c.clat*tR)*Math.sin(c.lat*tR)-Math.sin(c.clat*tR)*Math.cos(c.lat*tR)*Math.cos((c.lon-c.clon)*tR);
-      let brg=Math.atan2(y,x)/tR; if(brg<0)brg+=360;
-      const dlat=(c.lat-c.clat)*tR,dlon=(c.lon-c.clon)*tR;
-      const a=Math.sin(dlat/2)**2+Math.cos(c.clat*tR)*Math.cos(c.lat*tR)*Math.sin(dlon/2)**2;
-      const d=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-      const dirs=["N","NE","E","SE","S","SW","W","NW"];
-      hdg='<br>Tower is <b>'+Math.round(d)+' m to your '+dirs[Math.round(brg/45)%8]+'</b> (bearing '+Math.round(brg)+'°)';
-    }
-    el.innerHTML='<b>Cell tower location</b> (coarse, coverage ~'+Math.round(c.range||0)+' m)<br>'+
+    el.innerHTML='<b>Cell location</b> (coarse, ~'+Math.round(c.range||0)+' m radius)<br>'+
       c.lat.toFixed(5)+', '+c.lon.toFixed(5)+
-      ' &nbsp;<a href="https://maps.google.com/?q='+c.lat+','+c.lon+'" target="_blank">open ↗</a>'+hdg;
-    dropCellPin(c.lat,c.lon,c.range||1000,c.clat,c.clon);
+      ' &nbsp;<a href="https://maps.google.com/?q='+c.lat+','+c.lon+'" target="_blank">open ↗</a>';
+    dropCellPin(c.lat,c.lon,c.range||1000);
     toast("Cell location received");
     return;
   }
-  // diagnostics payload
+  if(c.kind==="accel"){ renderAccel(c); return; }
+  if(c.kind==="scan"){ renderScan(c); return; }
+  if(c.kind==="diag"){ renderDiag(c); return; }
+  // diagnostics payload (no "kind" -- the plain "cell" command's full reply)
   const rows=[];
   const add=(k,v,x,full)=>rows.push('<div class="cellrow'+(full?' full':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(x?'<div class="x">'+x+'</div>':'')+'</div>');
   const regTxt={0:"not searching",1:"registered (home)",2:"searching",3:"DENIED",4:"unknown",5:"registered (roaming)"}[c.reg]||("state "+c.reg);
@@ -830,7 +852,116 @@ function renderCell(c){
   $("cellGrid").innerHTML=rows.join("");
 }
 
-function dropCellPin(lat,lon,range,clat,clon){
+/* ---------- system diagnostics / I2C scan / accelerometer ---------- */
+function renderDiag(c){
+  const rows=[];
+  const add=(k,v,x,full)=>rows.push('<div class="cellrow'+(full?' full':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(x?'<div class="x">'+x+'</div>':'')+'</div>');
+  add("Firmware", c.fw||"—");
+  add("Uptime", fmtUptime(c.up));
+  add("Heap free", ((c.heap||0)/1024).toFixed(1)+" KB", c.heap<20000?"getting low":"");
+  add("Battery", (typeof c.bv==="number"?c.bv.toFixed(2)+"V":"—")+(c.gauge?"":" (gauge absent)"), c.bp!=null?c.bp+"%":"");
+  add("Network", c.net?"connected":"down", "reg="+c.reg+" csq="+c.csq, true);
+  add("Data (GPRS)", c.data?"up":"down");
+  add("CAN bus", c.can?"up":"down", (c.canf||0)+" frames read so far", true);
+  $("sysGrid").innerHTML=rows.join("");
+  toast("Diagnostics received");
+}
+function renderScan(c){
+  const rows=[];
+  rows.push('<div class="cellrow full"><div class="k">Devices found</div><div class="v">'+c.n+'</div>'+
+    '<div class="x">'+(c.addrs?("0x"+c.addrs.trim().split(/\s+/).join(", 0x")):"none")+'</div></div>');
+  rows.push('<div class="cellrow full"><div class="x">Expect 0x36 gauge · 0x18 accelerometer · 0x20 expander</div></div>');
+  $("sysGrid").innerHTML=rows.join("");
+  toast(c.n+" I2C device(s) found");
+}
+let lastAccel=null;
+function renderAccel(c){
+  lastAccel=c;
+  $("accelInt").textContent=c.int+" int";
+  const axisRow=(name,v)=>{
+    const pct=Math.max(0,Math.min(100,(v+2)/4*100));           // -2g..+2g -> 0..100%
+    const color=Math.abs(v)>1.2?"var(--gold)":"var(--ice)";
+    return '<div class="cellrow full"><div class="k">'+name+'</div><div class="v">'+v.toFixed(3)+' g</div>'+bar(pct,color)+'</div>';
+  };
+  $("accelGrid").innerHTML = axisRow("X",c.x)+axisRow("Y",c.y)+axisRow("Z",c.z);
+}
+let accelWatching=false, accelTimer=null;
+function toggleAccelWatch(){
+  accelWatching=!accelWatching;
+  const b=$("accelWatch");
+  b.classList.toggle("active",accelWatching);
+  b.textContent=accelWatching?"Stop watching":"Live watch";
+  if(accelWatching){ publishCmd("accel",null,null); accelTimer=setInterval(()=>publishCmd("accel",null,null),1000); }
+  else if(accelTimer){ clearInterval(accelTimer); accelTimer=null; }
+}
+function fmtUptime(s){ s=s||0; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+  return h?h+"h "+m+"m":m?m+"m "+(s%60)+"s":s+"s"; }
+
+/* ---------- data usage, parsed from the [data] log lines (no JSON for this one) ---------- */
+let dataUsage={sB:null,sT:null,lM:null,lT:null};
+function setDataUsage(sessDown,sessUp,lifeDown,lifeUp){
+  if(sessDown!=null){ dataUsage.sB=sessDown; dataUsage.sT=sessUp; }
+  if(lifeDown!=null){ dataUsage.lM=lifeDown; dataUsage.lT=lifeUp; }
+  const rows=[];
+  if(dataUsage.sB!=null) rows.push('<div class="cellrow"><div class="k">Session</div><div class="v">'+dataUsage.sB+' B down</div><div class="x">'+dataUsage.sT+' B up</div></div>');
+  if(dataUsage.lM!=null) rows.push('<div class="cellrow"><div class="k">Lifetime</div><div class="v">'+dataUsage.lM+' MB down</div><div class="x">'+dataUsage.lT+' MB up</div></div>');
+  if(rows.length) $("cellGrid").insertAdjacentHTML("beforeend",'<div class="cellrow full"><div class="x">App-layer estimate (MQTT + HTTPS/OTA), excludes TLS/TCP/IP overhead</div></div>');
+}
+
+/* ---------- engine / OBD-II ---------- */
+const OBD_LIM={cool:105,oil:125,trans:120,egt:700,iat:75,voltLo:11.8,voltHi:15.2,fuelLo:10};
+function badIf(bad){ return bad?' style="color:var(--red);font-weight:600"':''; }
+function renderObd(o){
+  const rows=[];
+  const add=(k,v,unit,bad,x)=>rows.push('<div class="cellrow"><div class="k">'+k+'</div><div class="v"'+badIf(bad)+'>'+v+' <small>'+unit+'</small></div>'+(x?'<div class="x">'+x+'</div>':'')+'</div>');
+  if(typeof o.cool==="number")  add("Coolant", o.cool.toFixed(0), "&deg;C", o.cool>OBD_LIM.cool);
+  if(typeof o.oil==="number")   add("Oil temp", o.oil.toFixed(0), "&deg;C", o.oil>OBD_LIM.oil);
+  if(typeof o.trans==="number") add("Gearbox", o.trans.toFixed(0), "&deg;C", o.trans>OBD_LIM.trans);
+  if(typeof o.egt==="number")   add("EGT", o.egt.toFixed(0), "&deg;C", o.egt>OBD_LIM.egt);
+  if(typeof o.iat==="number")   add("Intake temp", o.iat.toFixed(0), "&deg;C", o.iat>OBD_LIM.iat);
+  if(typeof o.amb==="number")   add("Ambient", o.amb.toFixed(0), "&deg;C", false);
+  if(typeof o.volt==="number")  add("Voltage", o.volt.toFixed(1), "V", o.volt<OBD_LIM.voltLo||o.volt>OBD_LIM.voltHi);
+  if(typeof o.fuel==="number")  add("Fuel", o.fuel.toFixed(0), "%", o.fuel<OBD_LIM.fuelLo);
+  if(typeof o.rpm==="number")   add("RPM", Math.round(o.rpm), "", false);
+  if(typeof o.load==="number")  add("Engine load", o.load.toFixed(0), "%", false);
+  if(typeof o.run==="number")   add("Run time", fmtUptime(o.run), "", false);
+  if(o.dtcn!=null){
+    rows.push('<div class="cellrow full"><div class="k">Fault codes</div><div class="v"'+badIf(o.dtcn>0)+'>'+o.dtcn+'</div>'+
+      (o.dtc?'<div class="x">'+o.dtc+'</div>':'<div class="x">none stored</div>')+'</div>');
+  }
+  if(!rows.length) rows.push('<div class="cellempty">Empty report — engine may not be running, or CAN isn\'t wired in yet.</div>');
+  $("obdGrid").innerHTML=rows.join("");
+  toast("OBD report ("+(o.rep||"—")+")");
+}
+
+/* ---------- activity / event feed ---------- */
+const EV_LABEL={
+  drive_start:["Started moving","ok"], drive_stop:["Stopped","ok"],
+  geofence_enter:["Arrived home","ok"], geofence_exit:["Left the home area","warn"],
+  gate_auto:["Gate opened on arrival","ok"], home_set:["Geofence centre set","ok"],
+  geo_set:["Geofence updated","ok"], boot:["Node powered up","warn"],
+  button_unlock:["Hidden button unlock","warn"], obd_alert:["OBD warning","bad"],
+  dtc:["New fault code stored","bad"], engine_start:["Engine started","ok"],
+  engine_stop:["Engine stopped","ok"]
+};
+const events=[];
+function renderEvent(e){
+  events.unshift(e); if(events.length>60) events.pop();
+  $("evCount").textContent=events.length+(events.length===1?" event":" events");
+  const box=$("evList"); box.innerHTML="";
+  events.forEach(ev=>{
+    const [label,sev]=EV_LABEL[ev.ev]||[ev.ev,"warn"];
+    const d=document.createElement("div"); d.className="entry";
+    const time=ev.ts?new Date(ev.ts).toLocaleTimeString():"—";
+    const loc=(ev.lat!=null||ev.lon!=null)
+      ? '<div class="el"><a href="https://maps.google.com/?q='+ev.lat+','+ev.lon+'" target="_blank">'+ev.lat.toFixed(5)+', '+ev.lon.toFixed(5)+' ↗</a>'+(ev.spd>=0?' &middot; '+Math.round(ev.spd)+' km/h':'')+'</div>' : '';
+    d.innerHTML='<div class="evrow '+sev+'"><span><span class="dot '+({ok:"on",bad:"off"}[sev]||"")+'"></span><span class="ek">'+label+'</span>'+loc+'</span><span class="et">'+time+'</span></div>';
+    box.appendChild(d);
+  });
+  toast(EV_LABEL[e.ev]?EV_LABEL[e.ev][0]:e.ev);
+}
+
+function dropCellPin(lat,lon,range){
   if(!map)return; const p=[lat,lon];
   if(cellCircle){ map.removeLayer(cellCircle); }
   cellCircle=L.circle(p,{radius:range,color:"#5ac8fa",weight:1,fillColor:"#5ac8fa",fillOpacity:.12}).addTo(map);
@@ -838,14 +969,7 @@ function dropCellPin(lat,lon,range,clat,clon){
     const ic=L.divIcon({className:"",html:'<div style="width:14px;height:14px;border-radius:50%;background:#5ac8fa;border:2px solid #141418;box-shadow:0 0 10px rgba(90,200,250,.9)"></div>',iconSize:[14,14],iconAnchor:[7,7]});
     cellMarker=L.marker(p,{icon:ic}).addTo(map);
   } else cellMarker.setLatLng(p);
-  // direction line from the car's GPS fix to the tower
-  if(cellLine){ map.removeLayer(cellLine); cellLine=null; }
-  if(typeof clat==="number" && typeof clon==="number"){
-    cellLine=L.polyline([[clat,clon],[lat,lon]],{color:"#ffcc00",weight:2,dashArray:"6 5"}).addTo(map);
-    map.fitBounds(cellLine.getBounds().pad(0.4));
-  } else {
-    map.setView(p, 13);
-  }
+  map.setView(p, 13);
 }
 
 /* ---------- commands ---------- */
@@ -858,24 +982,53 @@ function dropCellPin(lat,lon,range,clat,clon){
     toast(id==="cellLocate"?"Locating via cell…":"Requested — watch below");
   });
 });
-(function(){ const t=$("diagToggle"),c=$("diagCard");
-  if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
-let accelTimer=null;
-(function(){
-  const b=(id,cmd,msg)=>{ const el=$(id); if(el) el.addEventListener("click",()=>{ publishCmd(cmd,null,el); toast(msg); }); };
-  b("diagRun","diag","Running health check…");
-  b("diagScan","scan","Scanning I²C bus…");
-  b("diagAccel","accel","Reading accelerometer…");
-  const live=$("diagLive");
-  if(live) live.addEventListener("click",()=>{
-    if(accelTimer){ clearInterval(accelTimer); accelTimer=null; live.textContent="Live accel ▶"; toast("Live stopped"); }
-    else { publishCmd("accel",null,live);
-           accelTimer=setInterval(()=>publishCmd("accel",null,null),1200);
-           live.textContent="Live accel ■"; toast("Live — tilt and tap the board"); }
-  });
-})();
 (function(){ const t=$("cellToggle"),c=$("cellCard");
   if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
+
+// engine / OBD-II panel
+["obdRefresh","obdDtc","obdRescan"].forEach(id=>{
+  const el=$(id); if(!el)return;
+  el.addEventListener("click",()=>{
+    const cmd={obdRefresh:"obd",obdDtc:"dtc",obdRescan:"canscan"}[id];
+    publishCmd(cmd,null,el);
+    toast("Requested — watch below / Node log");
+  });
+});
+(function(){ const t=$("obdToggle"),c=$("obdCard");
+  if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
+
+// system diagnostics panel
+$("sysDiag").addEventListener("click",()=>{ publishCmd("diag",null,$("sysDiag")); });
+$("sysScan").addEventListener("click",()=>{ publishCmd("scan",null,$("sysScan")); });
+$("sysVer").addEventListener("click",()=>{ publishCmd("ver",null,$("sysVer")); toast("Watch the Node log for the reply"); });
+(function(){ const t=$("sysToggle"),c=$("sysCard");
+  if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴"; }); })();
+
+// accelerometer panel
+$("accelRead").addEventListener("click",()=>{ publishCmd("accel",null,$("accelRead")); });
+$("accelWatch").addEventListener("click",toggleAccelWatch);
+(function(){ const t=$("accelToggle"),c=$("accelCard");
+  if(t&&c) t.addEventListener("click",()=>{ const h=c.classList.toggle("collapsed"); t.textContent=h?"show ▾":"hide ▴";
+    if(h && accelWatching) toggleAccelWatch(); }); })();
+
+// node log: dump stored history on demand
+$("logDump").addEventListener("click",()=>{ publishCmd("dump",null,$("logDump")); toast("Dumping stored log…"); });
+
+// OTA: probe the URL without ever writing flash
+$("otaTest").addEventListener("click",()=>{
+  const u=$("otaUrl").value.trim();
+  if(!/^https?:\/\//.test(u)){ toast("Enter a http(s) URL"); return; }
+  publishCmd("otatest",{url:u});
+  toast("Testing URL — watch the Node log");
+});
+// OTA via Telegram: the node pulls the newest document the bot received
+$("otaTg").addEventListener("click",()=>{
+  const h=$("otaSha").value.trim().toLowerCase();
+  if(!/^[0-9a-f]{64}$/.test(h)){ toast("SHA-256 must be 64 hex characters"); return; }
+  if(!confirm("Pull the newest .bin from the Telegram bot and flash it?\n\nThe node verifies the SHA-256 before installing.")) return;
+  publishCmd("tgota",{sha256:h});
+  toast("Telegram update sent — watch the Node log");
+});
 
 document.querySelectorAll(".cmd").forEach(btn=>{
   btn.addEventListener("click",(ev)=>{
@@ -956,6 +1109,8 @@ $("loraCopy").addEventListener("click",()=>{
 setInterval(renderLora,1000); renderLora();
 
 initMap(); render(demoStatus());
+// demo-only: an occasional event so the Activity feed can be verified offline
+setInterval(()=>{ if(demo && Math.random()<0.25) demoEvent(); },12000);
 if(CONFIG.broker) connect();
 </script>
 </body>
